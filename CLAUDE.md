@@ -204,8 +204,15 @@ docker compose up -d --build
 | MCP Server | `8005` | Claude Code 知识检索 |
 | PostgreSQL | `5432` | 业务数据库 |
 | Milvus | `19530` | 向量数据库 |
-| MinIO API | `9000` | 对象存储 |
-| MinIO Console | `9001` | MinIO 管理面板 |
+
+### 存储架构
+
+| 场景 | 业务文件存储 | Milvus 内部存储 |
+|------|:---:|:---:|
+| **本地开发** | 本地文件系统 (`STORAGE_BACKEND=local`) | MinIO（容器内，不暴露端口） |
+| **生产环境** | 阿里云 OSS (`STORAGE_BACKEND=s3`) | MinIO（K8s 内部署） |
+
+切换存储后端只需修改 `.env` 中的 `STORAGE_BACKEND` 环境变量，无需改代码。
 
 ### 默认管理员
 

@@ -69,6 +69,7 @@ export default function AuditLogs() {
 
   const totalPages = Math.ceil(total / pageSize);
 
+  // Show "Coming Soon" if the API endpoint doesn't exist yet
   if (endpointMissing) {
     return (
       <div className="space-y-6">

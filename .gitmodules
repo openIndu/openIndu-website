@@ -1,0 +1,11 @@
+[submodule "openIndu-backend"]
+	path = openIndu-backend
+	url = https://gitee.com/openIndu/openIndu-backend.git
+
+[submodule "openIndu-admin"]
+	path = openIndu-admin
+	url = https://gitee.com/openIndu/openIndu-admin.git
+
+[submodule "openIndu-portal"]
+	path = openIndu-portal
+	url = https://gitee.com/openIndu/openIndu-portal.git

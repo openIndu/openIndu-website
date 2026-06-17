@@ -1,0 +1,202 @@
+# openIndu-website — 聚合仓项目指南
+
+> **Rule #1（元规则）**：任何 Agent 在执行任何任务前，必须先加载并遵守
+> [`.claude/governance/principle.md`](.claude/governance/principle.md)（Agent 行为守则）。
+>
+> **权威需求文档**：[`prod/requirements.md`](prod/requirements.md) — 所有功能开发的唯一需求来源。
+>
+> **硬约束**：禁止直接 `git push` 到 `main`/`master`，必须走 PR；
+> K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)。
+>
+> **治理体系**：Agent 角色、开发流程、PR/执行/通信规范统一收敛于
+> [`.claude/governance/`](.claude/governance/README.md)。
+>
+> **管控中心**：本仓受 [workflow-control-tower](https://github.com/agentic-develop-playground/workflow-control-tower)
+> 统一管控，Agent 行为守则权威源为 `workflow-control-tower/team/principle.md`。
+
+## 0. 工作目录约定
+
+**工作目录**: `openIndu-website`
+
+**重要约定**:
+- 所有文件操作必须限制在 `openIndu-website` 工作目录内
+- 所有相对路径均以 `openIndu-website` 为根目录
+- 子仓库通过 git submodule 挂载，Agent 操作子仓代码前需先 `cd` 进入对应子目录
+
+---
+
+## 1. 项目概述
+
+**openIndu-website** 是 openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理以下子仓库：
+
+| 子仓库 | 路径 | 技术栈 | 说明 |
+|--------|------|--------|------|
+| [openIndu-backend](https://gitee.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus | REST API + MCP Server |
+| [openIndu-admin](https://gitee.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台 |
+| [openIndu-portal](https://gitee.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台 |
+
+### 平台服务总览
+
+| 服务 | 域名/端口 | 定位 | 用户 |
+|------|------|------|------|
+| openIndu-portal | `openindu.com` | 社区官网前台 | 所有人（含未登录） |
+| openIndu-admin | `admin.openindu.com` | 统一管理后台 | 已认证用户（按角色分级） |
+| openIndu-backend (Web) | `api.openindu.com` | REST API（Portal + Admin） | 前端应用 |
+| openIndu-backend (MCP) | `:8005` | MCP Server（Claude Code 知识检索） | Claude Code / AI Agent |
+
+---
+
+## 2. 项目结构
+
+```
+openIndu-website/
+├── CLAUDE.md                         # 本文件：聚合仓入口指南
+├── README.md                         # 项目说明
+├── prod/                             # 生产规范（权威文档源）
+│   └── requirements.md               # 平台需求文档（所有功能开发的唯一需求来源）
+├── .claude/
+│   ├── settings.json                 # Hooks 配置（防 push main + lint）
+│   ├── settings.local.json           # 权限配置
+│   ├── agents/                       # Agent 定义
+│   │   ├── backend-developer.md      # FastAPI 后端开发
+│   │   ├── frontend-developer.md     # React 前端开发
+│   │   ├── fullstack-developer.md    # 全栈协调（跨前后端任务）
+│   │   └── devops-engineer.md        # 部署与运维
+│   └── governance/
+│       ├── README.md                 # 治理体系说明
+│       ├── principle.md              # Agent 行为守则
+│       └── development-workflow.md   # 开发工作流
+├── openIndu-backend/                 # git submodule: FastAPI 后端
+├── openIndu-admin/                   # git submodule: React 管理后台
+├── openIndu-portal/                  # git submodule: React 官网前台
+└── .gitmodules
+```
+
+---
+
+## 3. 架构总览
+
+```
+                        ┌─────────────────┐
+                        │   Nginx Ingress  │
+                        └────────┬────────┘
+                                 │
+          ┌──────────────────────┼──────────────────────┐
+          ▼                      ▼                      ▼
+   openindu.com          admin.openindu.com      api.openindu.com
+   ┌──────────┐          ┌──────────┐            ┌──────────┐
+   │ Portal   │          │ Admin    │            │ Web API  │
+   │ React    │          │ React    │            │ FastAPI  │
+   │ Nginx    │          │ Nginx    │            │ :8004    │
+   │ :80      │          │ :80      │            └────┬─────┘
+   └──────────┘          └──────────┘                 │
+                                                      │
+            ┌─────────────────────────────────────────┤
+            │                 │                       │
+            ▼                 ▼                       ▼
+      ┌──────────┐    ┌──────────┐            ┌──────────┐
+      │ MCP Svr  │    │PostgreSQL│            │阿里云 OSS │
+      │ FastAPI  │    │ :5432    │            │  (私有)   │
+      │ :8005    │    └──────────┘            │Presigned  │
+      │(内网only)│                            │URL 直下载  │
+      └────┬─────┘                            └──────────┘
+           │
+      ┌────┴──────────┐
+      │    Milvus      │    ┌──────────┐
+      │    :19530      │    │ RAG Svr  │
+      │    向量数据库    │    │ PDF解析   │
+      └───────────────┘    │ 向量索引   │
+                           └──────────┘
+```
+
+---
+
+## 4. 技术栈汇总
+
+| 层 | 技术 | 说明 |
+|----|------|------|
+| Portal 前端 | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 社区官网 |
+| Admin 前端 | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 管理后台 |
+| 后端 Web API | Python 3.11+ + FastAPI 0.115+ + SQLAlchemy 2.x | REST API |
+| 后端 MCP | Python 3.11+ + FastAPI + MCP Python SDK 1.x | Claude Code 知识检索 |
+| 数据库 | PostgreSQL 15 | 业务数据 |
+| 向量库 | Milvus 2.4 | 知识库向量存储 |
+| 对象存储 | 阿里云 OSS（MinIO 开发环境） | PDF + 软件包 |
+| RAG | PyMuPDF + BGE-M3 + sentence-transformers | PDF 解析与向量化 |
+| 短信 | 阿里云短信 / 腾讯云短信 | 验证码发送 |
+
+---
+
+## 5. 开发约定
+
+1. **需求驱动** — 所有功能开发以 `prod/requirements.md` 为唯一需求来源
+2. **方案设计先行** — 执行任务前进行方案设计，复杂任务使用 Plan agent
+3. **任何修改必须经过用户同意** — 不得擅自修改代码
+4. **测试驱动** — 每次修改代码必须通过测试用例
+5. **子仓隔离** — 修改子仓代码时在子仓内创建分支、提交、PR
+6. **API 端点验证** — 新增 API 必须验证前后端调用通畅
+7. **文档同步** — 架构变更后及时更新 `prod/requirements.md`
+8. **清理临时文件** — 脚本执行完成后自行清理
+
+---
+
+## 6. 子仓操作指南
+
+### 克隆聚合仓（含子仓）
+
+```bash
+git clone --recurse-submodules https://gitee.com/openIndu/openIndu-website.git
+```
+
+### 更新子仓
+
+```bash
+git submodule update --remote --recursive
+```
+
+### 在子仓中开发
+
+```bash
+cd openIndu-backend
+git checkout -b feat/my-feature
+# ... 开发 ...
+git add .
+git commit -m "feat: xxx"
+git push origin feat/my-feature
+# 在 Gitee 上创建 PR
+```
+
+---
+
+## 7. 配置参考
+
+### 环境变量（开发环境）
+
+```bash
+# 数据库
+DATABASE_URL=postgresql://openindu:password@localhost:5432/openindu_studio
+
+# OSS/MinIO
+OSS_ENDPOINT=http://localhost:9000
+OSS_ACCESS_KEY=minioadmin
+OSS_SECRET_KEY=minioadmin
+OSS_BUCKET=openindu-studio-documents
+OSS_REGION=us-east-1
+
+# Milvus
+MILVUS_HOST=localhost
+MILVUS_PORT=19530
+
+# JWT
+JWT_SECRET_KEY=dev-secret-key-change-in-production
+
+# 短信（开发环境 Mock）
+SMS_MOCK_ENABLED=true
+SMS_MOCK_CODE=888888
+```
+
+---
+
+**最后更新时间**: 2025-06-17
+**文档版本**: 0.1.0
+**平台版本**: 0.1.0-SNAPSHOT

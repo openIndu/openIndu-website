@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.5.0 | 日期: 2025-06-17 | 状态: 草案
+> 版本: 0.6.0 | 日期: 2025-06-17 | 状态: 草案
 
 ---
 
@@ -47,7 +47,7 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 平台截图轮播 | 产品功能截图轮播展示，图片从 API 读取 | P0 |
 | 解决方案卡片 | 4 个核心解决方案（运动控制/视觉/IIoT/基础设施），从 API 读取 | P0 |
 | 开源优势 | 4 个优势卡片（开源/社区/免费/贡献），从 API 读取 | P0 |
-| 仓库链接 | GitHub + Gitee 仓库入口 | P0 |
+| 仓库链接 | GitHub + Gitee 仓库入口（前端硬编码） | P0 |
 | CTA 区域 | 号召行动区域，引导用户参与 | P0 |
 
 #### 2.2.2 登录/注册
@@ -189,7 +189,7 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
-| 文档列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数 | P0 |
+| 文档列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数（只读展示） | P0 |
 | 文档上传 | 上传 PDF，选择品牌和分类 | P0 |
 | 文档删除 | 级联删除 OSS + 数据库 + RAG 向量数据 | P0 |
 | 同步触发 | 手动触发 OSS → RAG 全量/增量同步 | P0 |
@@ -214,7 +214,7 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
-| 软件列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数 | P0 |
+| 软件列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数（只读展示） | P0 |
 | 软件上传 | 上传软件包（zip/exe/msi 等），选择品牌和分类 | P0 |
 | 软件删除 | 级联删除 OSS + 数据库记录 | P0 |
 
@@ -326,9 +326,10 @@ openIndu-backend/
 |------|------|
 | 验证码长度 | 6 位数字 |
 | 有效期 | 5 分钟 |
-| 发送冷却 | 同一手机号 60 秒内不可重发 |
+| 发送冷却 | 同一手机号 60 秒内不可重发（查询该手机号最近一条 `MAX(created_at)`，距今 < 60 秒则拒绝） |
 | 每日上限 | 同一手机号每天最多 10 条（通过 `SELECT COUNT(*) FROM sms_codes WHERE phone = ? AND created_at::date = CURRENT_DATE` 校验） |
 | 验证次数 | 同一验证码最多验证 3 次，超次失效 |
+| 手机号格式 | 中国大陆 11 位数字（1 开头），后端校验。国际号码后续扩展 |
 
 **短信端点限流**（FastAPI + slowapi / 中间件）：
 
@@ -436,8 +437,11 @@ openIndu-backend/
      │                 │ 3. 校验角色 ≥ member  │                   │
      │                 │ 4. 校验用户未被拉黑   │                   │
      │                 │ 5. 校验文档存在       │                   │
-     │                 │ 6. download_count+=1 │                   │
-     │                 │ 7. 调用 OSS SDK 生成  │                   │
+     │                 │ 6. 检查每日下载限额    │                   │
+     │                 │    (文档≤5次/天,超限→429)│                   │
+     │                 │ 7. download_count+=1 │                   │
+     │                 │ 8. 记录 download_log  │                   │
+     │                 │ 9. 调用 OSS SDK 生成  │                   │
      │                 │    Presigned URL      │                   │
      │                 │    (5 分钟有效)        │                   │
      │                 └─────────┬──────────┘                   │
@@ -618,6 +622,12 @@ async function handleDownload(docId: number) {
   "code": 400,
   "detail": "错误描述"
 }
+
+// 限流错误（HTTP 429 Too Many Requests）
+{
+  "code": 429,
+  "detail": "今日文档下载次数已用完（5次/天）"
+}
 ```
 
 #### 4.3.11 定时任务
@@ -668,6 +678,7 @@ async function handleDownload(docId: number) {
 
 ```
 users                    # 用户表
+├── id                   # 主键（BIGSERIAL）
 ├── phone                # 手机号（唯一索引）
 ├── role                 # user / member / admin
 ├── is_active            # 是否启用
@@ -708,7 +719,11 @@ login_sessions           # 登录会话（在线统计）🆕
 ├── last_active_at       # 最后活跃时间（每次 API 请求更新）
 └── is_active            # 是否在线（5分钟内无活动则为 false）
 
+# UPSERT 唯一键：(user_id, ip_address, user_agent) 组合。
+# 同一用户用同一设备+IP 多次请求时更新 last_active_at，切换设备/IP 时新增记录。
+
 documents                # 文档元数据
+├── id                   # 主键（BIGSERIAL）
 ├── filename
 ├── original_name
 ├── brand                # siemens/mitsubishi/omron/keyence/inovance
@@ -722,11 +737,13 @@ documents                # 文档元数据
 └── sync_time
 
 software                 # 软件包元数据
+├── id                   # 主键（BIGSERIAL）
 ├── filename
 ├── original_name
 ├── brand                # siemens/mitsubishi/omron/keyence/inovance
 ├── category             # plc-ide/hmi-ide/plc-driver/utility/firmware/other
 ├── latest_version       # 最新版本号（如 "V18"），冗余字段便于列表展示
+├── download_count       # 总下载次数（所有版本合计），冗余字段便于列表展示
 ├── description
 ├── is_active            # 是否上架
 └── created_at
@@ -742,7 +759,7 @@ software_versions        # 软件版本明细 🆕
 └── is_active            # 是否启用（可下架旧版本）
 
 sync_logs                # 同步日志
-├── document_id
+├── document_id          # 可为 NULL（扫描阶段失败时无具体文件）
 ├── action               # add/update/delete
 ├── status               # success/failed
 ├── error_message
@@ -767,6 +784,11 @@ download_logs             # 下载日志（每日限制计数 + 审计）
 ├── resource_id          # 文档或软件 ID
 ├── ip_address           # 下载时 IP
 └── created_at           # 下载时间（用于按日期统计每日次数）
+
+# download_count vs download_logs 的关系：
+# - documents.download_count / software.download_count：总下载次数，列表/详情展示用，每次下载 +1
+# - download_logs：每日限额校验用，按 user_id + resource_type + created_at::date 统计当日次数
+# - 两者各司其职，不互相替代
 
 admin_audit_logs         # 管理员操作日志 🆕
 ├── admin_id             # 操作人（admin ID）
@@ -971,7 +993,7 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
                            └──────────┘
 ```
 
-> MCP Server 仅暴露在内网（或 localhost），不经过 Ingress 对外。Claude Code 通过内网或本地直连。OSS Bucket 为私有读写，所有文件访问通过后端签发 Presigned URL（5 分钟有效）后用户直连 OSS 下载。
+> MCP Server 仅暴露在内网（或 localhost），不经过 Ingress 对外。Claude Code 通过内网或本地直连。MCP Server 直接查询 Milvus（不经过 RAG Server）。OSS Bucket 为私有读写，所有文件访问通过后端签发 Presigned URL（5 分钟有效）后用户直连 OSS 下载。
 
 ---
 
@@ -1020,3 +1042,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.3.0 | 2025-06-17 | 新增拉黑/强制登出/token 黑名单；新增在线统计/登录位置；工作流确认仅在 Portal；后端改为 Web+MCP 双应用架构 |
 | 0.4.0 | 2025-06-17 | 新增 Portal 资源浏览页；下载改为 OSS Presigned URL 直链（Bucket 私有+后端签发 5 分钟签名 URL）；新增文件类型白名单；新增软件版本管理（software_versions 表）；新增短信降级方案；MCP 工具对齐 8 类文档分类；新增 API 统一响应格式；补全部署架构图 |
 | 0.5.0 | 2025-06-17 | 全面评审修复：Admin 去下载功能（归 Portal）；新增 daily download limit（5次/天/类型）+ download_logs 表；修复 sms_codes 冗余字段设计；Refresh token rotation + jti 黑名单；补充 benefits/footer API；明确 RAG/MCP 数据流；CORS+限流策略；补 OSS_REGION；开发计划调整 |
+| 0.6.0 | 2025-06-17 | 第二轮评审修复：明确 download_count vs download_logs 关系；下载流程图补每日限额步骤；补 429 响应格式；users/documents/software 补 id 主键；software 补 download_count；login_sessions 明确 UPSERT 唯一键；sms_codes 冷却逻辑精确到 MAX(created_at)；新增手机号格式校验；sync_logs document_id 可为 NULL；仓库链接标注硬编码；Admin 下载次数标注只读；部署图注释补 MCP→Milvus 查询说明 |

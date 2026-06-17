@@ -11,3 +11,4 @@
 [submodule "openIndu-portal"]
 	path = openIndu-portal
 	url = https://gitee.com/openIndu/openIndu-portal.git
+	branch = main

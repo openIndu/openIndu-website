@@ -168,35 +168,65 @@ git push origin feat/my-feature
 
 ---
 
-## 7. 配置参考
+## 7. 部署方案
+
+### 部署文件分层
+
+| 文件类型 | 放置位置 | 说明 |
+|---------|---------|------|
+| `Dockerfile` | 各子仓 | 构建逻辑与代码强绑定，随代码变更 |
+| `nginx.conf` | Portal / Admin 子仓 | 前端路由规则各不相同 |
+| `docker-compose.yml` | 聚合仓根目录 | 跨子仓服务编排（依赖、端口、网络） |
+| `.env` | 聚合仓根目录 | 本地开发环境变量（Git 忽略，不提交） |
+| `.env.example` | 聚合仓根目录 | 环境变量模板（Git 跟踪） |
+| K8s 部署清单 | `infra-deploy` 仓 | 生产部署，不存本仓 |
+
+### 开发环境启动
+
+```bash
+# 1. 克隆聚合仓（含子仓）
+git clone --recurse-submodules https://gitee.com/openIndu/openIndu-website.git
+
+# 2. 从模板创建 .env
+cp .env.example .env
+
+# 3. 一键启动所有服务
+docker compose up -d --build
+```
+
+### 本地服务端口
+
+| 服务 | 端口 | 说明 |
+|------|:---:|------|
+| openIndu-portal | `3000` | 社区官网前台 |
+| openIndu-admin | `3001` | 管理后台 |
+| Web API | `8004` | REST API |
+| MCP Server | `8005` | Claude Code 知识检索 |
+| PostgreSQL | `5432` | 业务数据库 |
+| Milvus | `19530` | 向量数据库 |
+| MinIO API | `9000` | 对象存储 |
+| MinIO Console | `9001` | MinIO 管理面板 |
+
+### 默认管理员
+
+启动后自动创建管理员账号：
+
+| 字段 | 值 |
+|------|------|
+| 手机号 | `13800000000` |
+| 验证码 | `888888`（开发环境固定） |
+| 角色 | `admin` |
+
+---
+
+## 8. 配置参考
 
 ### 环境变量（开发环境）
 
-```bash
-# 数据库
-DATABASE_URL=postgresql://openindu:password@localhost:5432/openindu_studio
-
-# OSS/MinIO
-OSS_ENDPOINT=http://localhost:9000
-OSS_ACCESS_KEY=minioadmin
-OSS_SECRET_KEY=minioadmin
-OSS_BUCKET=openindu-studio-documents
-OSS_REGION=us-east-1
-
-# Milvus
-MILVUS_HOST=localhost
-MILVUS_PORT=19530
-
-# JWT
-JWT_SECRET_KEY=dev-secret-key-change-in-production
-
-# 短信（开发环境 Mock）
-SMS_MOCK_ENABLED=true
-SMS_MOCK_CODE=888888
-```
+见 `.env.example`（聚合仓根目录）。开发环境配置模板，复制为 `.env` 后使用。
 
 ---
 
 **最后更新时间**: 2025-06-17
-**文档版本**: 0.1.0
+**文档版本**: 0.2.0
 **平台版本**: 0.1.0-SNAPSHOT

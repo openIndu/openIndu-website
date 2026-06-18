@@ -58,9 +58,10 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 手机号注册 | 输入手机号 → 发送短信验证码 → 输入验证码 → 注册（首个用户自动 admin） | P0 |
 | 验证码重发 | 60 秒冷却后重新发送 | P0 |
 | 登录态保持 | JWT access token（15min）+ refresh token（7d） | P0 |
-| 登录后跳转 | 登录成功后跳转到管理后台 | P1 |
+| 登录后跳转 | 登录成功后跳转到来源页，默认进入资源中心 | P1 |
+| 个人中心 | 登录后显示个人中心入口，可设置昵称；手机号仅脱敏展示 | P1 |
 
-> 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用。
+> 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用。手机号属于敏感信息，Portal 页面仅允许脱敏展示。
 
 #### 2.2.3 资源浏览（面向成员）
 
@@ -71,7 +72,7 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 软件浏览 | 分页展示软件列表，支持按品牌/分类/关键词筛选，显示下载次数 | P0 |
 | 软件下载 | member 及以上可见下载按钮，调用后端校验后下载，每日限 5 次 | P0 |
 
-> 资源浏览页是 Portal 上的独立页面（`/resources/documents` 和 `/resources/software`）。`user` 角色只能浏览列表，`member` 及以上可下载。所有下载经后端签发 OSS Presigned URL（5 分钟有效），用户直接从 OSS 下载，不经过后端代理。**每日下载限制**：文档和软件各独立计数，每个用户每天最多下载 5 次（基于 `download_logs` 表按日期统计），超限返回 429。
+> 资源浏览页是 Portal 上的独立页面（`/resources/documents` 和 `/resources/software`）。未登录用户可浏览资源列表；点击下载时必须先登录。`user` 角色只能浏览列表，`member` 及以上可下载。所有下载经后端签发 OSS Presigned URL（5 分钟有效），用户直接从 OSS 下载，不经过后端代理。**每日下载限制**：文档和软件各独立计数，每个用户每天最多下载 5 次（基于 `download_logs` 表按日期统计），超限返回 429。
 
 #### 2.2.4 工作流（面向成员）
 
@@ -318,6 +319,7 @@ openIndu-backend/
 | `/auth/register` | POST | 手机号 + 验证码注册，首个用户自动 admin | 公开 |
 | `/auth/refresh` | POST | 刷新 access token | 公开 |
 | `/auth/me` | GET | 获取当前用户信息 | 登录 |
+| `/auth/me` | PATCH | 更新当前用户资料（昵称等，手机号不可修改） | 登录 |
 | `/auth/logout` | POST | 登出（将当前 token jti 加入黑名单） | 登录 |
 
 **验证码规则**：
@@ -386,13 +388,13 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/documents` | GET | 文档列表（分页+筛选），含下载次数 | 登录 |
+| `/documents` | GET | 文档列表（分页+筛选），含下载次数 | 公开 |
 | `/documents/upload` | POST | 上传 PDF | admin |
-| `/documents/{id}` | GET | 文档详情（含下载次数） | 登录 |
+| `/documents/{id}` | GET | 文档详情（含下载次数） | 公开 |
 | `/documents/{id}/download-link` | GET | 获取 OSS Presigned URL（5 分钟有效），+1 下载计数。每日限 5 次（文档），超限返回 429 | member |
 | `/documents/{id}` | DELETE | 级联删除 | admin |
-| `/documents/brands/list` | GET | 品牌列表 | 登录 |
-| `/documents/categories/list` | GET | 文档分类列表 | 登录 |
+| `/documents/brands/list` | GET | 品牌列表 | 公开 |
+| `/documents/categories/list` | GET | 文档分类列表 | 公开 |
 
 **文件上传限制**：
 
@@ -407,9 +409,9 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/software` | GET | 软件列表（分页+筛选），含下载次数和最新版本号 | 登录 |
+| `/software` | GET | 软件列表（分页+筛选），含下载次数和最新版本号 | 公开 |
 | `/software/upload` | POST | 上传软件包，选择品牌、分类和版本号 | admin |
-| `/software/{id}` | GET | 软件详情（含下载次数和所有版本列表） | 登录 |
+| `/software/{id}` | GET | 软件详情（含下载次数和所有版本列表） | 公开 |
 | `/software/{id}/download-link` | GET | 获取最新版本 OSS Presigned URL，+1 下载计数。每日限 5 次（软件），超限返回 429 | member |
 | `/software/{id}/versions/{vid}/download-link` | GET | 获取指定版本 OSS Presigned URL。每日限 5 次（软件），超限返回 429 | member |
 | `/software/{id}` | DELETE | 级联删除软件及所有版本（OSS + 数据库） | admin |
@@ -679,7 +681,8 @@ async function handleDownload(docId: number) {
 ```
 users                    # 用户表
 ├── id                   # 主键（BIGSERIAL）
-├── phone                # 手机号（唯一索引）
+├── phone                # 手机号（唯一索引，Portal 脱敏展示）
+├── nickname             # 昵称（可选，用户可在个人中心设置）
 ├── role                 # user / member / admin
 ├── is_active            # 是否启用
 ├── is_blacklisted       # 是否在黑名单中 🆕

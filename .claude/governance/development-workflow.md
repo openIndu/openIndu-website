@@ -58,11 +58,11 @@ prod/requirements.md（需求文档）
 
 1. 在子仓内创建分支
 2. 开发 + 测试
-3. 提交到子仓远程
-4. 在子仓 Gitee 上创建 PR
-5. 审核通过后合并到子仓 main
+3. 提交到子仓远程（`git push origin <branch>`）
+4. 在 GitHub 上创建 PR（`gh pr create --repo openIndu/<subrepo> --base main --head <branch>`）
+5. 审核通过后合并到子仓 main（`gh pr merge <id> --repo openIndu/<subrepo> --merge`）
 6. 在聚合仓更新 submodule 指针：`git submodule update --remote`
-7. 在聚合仓提交 submodule 指针更新
+7. 在聚合仓提交 submodule 指针更新（同样走功能分支 → PR → 合并）
 
 ## 代码审查清单
 

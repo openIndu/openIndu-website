@@ -31,9 +31,9 @@
 
 | 子仓库 | 路径 | 技术栈 | 说明 |
 |--------|------|--------|------|
-| [openIndu-backend](https://gitee.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus | REST API + MCP Server |
-| [openIndu-admin](https://gitee.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台 |
-| [openIndu-portal](https://gitee.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台 |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus | REST API + MCP Server |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台 |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台 |
 
 ### 平台服务总览
 
@@ -145,7 +145,7 @@ openIndu-website/
 ### 克隆聚合仓（含子仓）
 
 ```bash
-git clone --recurse-submodules https://gitee.com/openIndu/openIndu-website.git
+git clone --recurse-submodules https://github.com/openIndu/openIndu-website.git
 ```
 
 ### 更新子仓
@@ -163,7 +163,8 @@ git checkout -b feat/my-feature
 git add .
 git commit -m "feat: xxx"
 git push origin feat/my-feature
-# 在 Gitee 上创建 PR
+# 在 GitHub 上创建 PR
+gh pr create --repo openIndu/<subrepo> --base main --head feat/my-feature
 ```
 
 ---
@@ -185,7 +186,7 @@ git push origin feat/my-feature
 
 ```bash
 # 1. 克隆聚合仓（含子仓）
-git clone --recurse-submodules https://gitee.com/openIndu/openIndu-website.git
+git clone --recurse-submodules https://github.com/openIndu/openIndu-website.git
 
 # 2. 从模板创建 .env
 cp .env.example .env
@@ -234,6 +235,6 @@ docker compose up -d --build
 
 ---
 
-**最后更新时间**: 2025-06-17
-**文档版本**: 0.2.0
+**最后更新时间**: 2026-06-20
+**文档版本**: 0.3.0
 **平台版本**: 0.1.0-SNAPSHOT

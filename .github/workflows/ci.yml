@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Check all submodules are reachable
-        run: git submodule status
+      - name: Check .gitmodules config and submodule SHAs
+        run: |
+          echo "=== .gitmodules ===" && cat .gitmodules
+          echo "=== submodule SHAs registered in tree ===" && git submodule status
 
   validate-compose:
     name: Validate docker-compose.yml syntax

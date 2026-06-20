@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-submodules:
+    name: Validate submodule references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Check all submodules are reachable
+        run: git submodule status
+
+  validate-compose:
+    name: Validate docker-compose.yml syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: YAML syntax check
+        run: |
+          python3 -c "
+          import yaml, sys
+          with open('docker-compose.yml') as f:
+              yaml.safe_load(f)
+          print('docker-compose.yml is valid YAML')
+          "

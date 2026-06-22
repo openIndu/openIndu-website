@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.6.0 | 日期: 2025-06-17 | 状态: 草案
+> 版本: 0.7.0 | 日期: 2026-06-22 | 状态: 草案
 
 ---
 
@@ -187,28 +187,38 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 #### 3.3.3 文档管理
 
-> Admin 后台仅负责文档的**上传、删除和同步管理**。文档浏览和下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
+> Admin 后台仅负责文档的**上传、编辑元数据、删除和同步管理**。文档浏览和下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
-| 文档列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数（只读展示） | P0 |
-| 文档上传 | 上传 PDF，选择品牌和分类 | P0 |
+| 文档列表 | 分页展示，支持按品牌/分类/系列/关键词筛选，显示下载次数（只读展示） | P0 |
+| 文档上传 | 上传 PDF，选择品牌、分类、系列（可选）；文件名自动以 `品牌-分类-内容.pdf` 格式存入 OSS | P0 |
+| 文档编辑 | 修改品牌、分类、系列、描述等元数据；不可修改已上传的文件本体 | P0 |
 | 文档删除 | 级联删除 OSS + 数据库 + RAG 向量数据 | P0 |
 | 同步触发 | 手动触发 OSS → RAG 全量/增量同步 | P0 |
 | 同步状态 | 查看同步进度和日志 | P1 |
 
-**文档分类体系**：
+**文档分类体系**（存储于 `resource_tags` 表，type = `doc_category`，可在设置页维护）：
 
 | 分类 | 值 | 说明 |
 |------|------|------|
-| PLC 编程手册 | `plc-manual` | PLC 编程手册（指令集、函数块等） |
-| 硬件手册 | `hardware-manual` | 硬件选型、接线、安装手册 |
-| 驱动器手册 | `driver-manual` | 伺服/变频驱动器手册 |
-| HMI 手册 | `hmi-manual` | 触摸屏/HMI 编程手册 |
-| 软件手册 | `software-manual` | 编程软件/组态软件使用手册 |
+| PLC 编程手册 | `plc-manual` | PLC 编程手册（指令集、函数块、编程示例） |
+| 硬件手册 | `hardware-manual` | 硬件选型、接线、安装、IO 模块手册 |
+| 驱动器手册 | `driver-manual` | 伺服驱动器 / 变频器手册 |
+| HMI 手册 | `hmi-manual` | 触摸屏 / HMI 编程手册 |
+| 软件手册 | `software-manual` | 编程软件 / 组态软件使用手册 |
+| 机器人手册 | `robot-manual` | 工业机器人控制器 / 编程手册 |
 | 最佳实践 | `best-practice` | 行业最佳实践文档 |
 | 电气规范 | `electrical-standard` | 电气设计规范与标准 |
-| 其他 | `other` | 其他类型文档 |
+| 其他 | `other` | 机器视觉、传感器、选型目录等其他类型 |
+
+**品牌与系列管理**（见 §3.3.6）：品牌（`doc_brand`）、文档分类（`doc_category`）、产品系列（`doc_series`）均存储于 `resource_tags` 表，支持在设置页面增删查改，无需修改代码。
+
+**OSS 文件命名规范**：`doc/{品牌中文}/{分类中文}/{品牌中文}-{分类中文}-{内容描述}.pdf`，例如：
+```
+doc/西门子/PLC/西门子-PLC-SIMATIC S7-1200 系统手册.pdf
+doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
+```
 
 #### 3.3.4 软件管理
 
@@ -233,7 +243,19 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 > 软件管理与文档管理共享相同的角色权限模型。软件包存储在 OSS 中，以 `software/` 前缀区分。
 
-#### 3.3.5 系统配置
+#### 3.3.6 品牌与分类管理（设置中心）
+
+> 品牌、文档分类、软件分类、产品系列均从数据库动态读取，通过设置页面维护，无需改代码。
+
+| 功能点 | 说明 | 优先级 |
+|--------|------|:---:|
+| 品牌管理 | 增删改品牌标签（`doc_brand` / `sw_brand`），含中文名称、slug、启用/停用 | P0 |
+| 文档分类管理 | 增删改文档分类（`doc_category`） | P0 |
+| 软件分类管理 | 增删改软件分类（`sw_category`） | P0 |
+| 系列管理 | 增删改产品系列（`doc_series` / `sw_series`），关联所属品牌和分类 | P0 |
+| 排序 | 每类标签可配置 sort_order 控制下拉顺序 | P1 |
+
+#### 3.3.7 系统配置
 
 系统配置采用**混合分层策略**：
 
@@ -389,13 +411,34 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/documents` | GET | 文档列表（分页+筛选），含下载次数 | 公开 |
-| `/documents/upload` | POST | 上传 PDF | admin |
+| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword），含下载次数 | 公开 |
+| `/documents/upload` | POST | 上传 PDF，含 brand/category/series/description | admin |
 | `/documents/{id}` | GET | 文档详情（含下载次数） | 公开 |
-| `/documents/{id}/download-link` | GET | 获取 OSS Presigned URL（5 分钟有效），+1 下载计数。每日限 5 次（文档），超限返回 429 | member |
-| `/documents/{id}` | DELETE | 级联删除 | admin |
-| `/documents/brands/list` | GET | 品牌列表 | 公开 |
-| `/documents/categories/list` | GET | 文档分类列表 | 公开 |
+| `/documents/{id}` | PATCH | 更新元数据（brand/category/series/description/original_name） | admin |
+| `/documents/{id}/download-link` | GET | 获取 OSS Presigned URL（5 分钟有效），+1 下载计数。每日限 5 次，超限返回 429 | member |
+| `/documents/{id}` | DELETE | 级联删除 OSS + DB + RAG 向量 | admin |
+
+#### 4.3.5-1 标签管理模块 (`/api/v1/tags`)
+
+> 统一管理品牌、文档分类、软件分类、产品系列标签，替代原硬编码的 brands/categories 列表端点。
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/tags` | GET | 按 type 查询标签列表，支持 parent_value/brand_value 过滤 | 公开 |
+| `/tags` | POST | 新增标签 | admin |
+| `/tags/{id}` | PATCH | 更新标签（label_zh / is_active / sort_order） | admin |
+| `/tags/{id}` | DELETE | 删除标签（若仍被文档/软件引用则返回 400） | admin |
+
+**标签 type 说明**：
+
+| type | 用途 |
+|------|------|
+| `doc_brand` | 文档品牌（西门子/三菱/欧姆龙等） |
+| `doc_category` | 文档分类（plc-manual/driver-manual 等） |
+| `doc_series` | 文档产品系列，关联 brand_value 和 parent_value（分类） |
+| `sw_brand` | 软件品牌 |
+| `sw_category` | 软件分类 |
+| `sw_series` | 软件产品系列 |
 
 **文件上传限制**：
 
@@ -728,17 +771,32 @@ login_sessions           # 登录会话（在线统计）🆕
 
 documents                # 文档元数据
 ├── id                   # 主键（BIGSERIAL）
-├── filename
-├── original_name
-├── brand                # siemens/mitsubishi/omron/keyence/inovance
-├── category             # plc-manual/hardware-manual/driver-manual/hmi-manual/software-manual/best-practice/electrical-standard/other
+├── filename             # 存储文件名（如 西门子-PLC-SIMATIC S7-1200 系统手册.pdf）
+├── original_name        # 原始上传文件名
+├── brand                # 品牌 slug（关联 resource_tags.type=doc_brand）
+├── category             # 分类 slug（关联 resource_tags.type=doc_category）
+├── series               # 系列 slug（可选，关联 resource_tags.type=doc_series）
+├── description          # 文档描述（可选，手动或自动填充）
 ├── file_size
 ├── file_hash            # SHA256
-├── oss_key              # OSS 对象 key（前缀: documents/）
+├── oss_key              # OSS 对象 key（前缀: doc/，格式: doc/{品牌中文}/{分类中文}/{文件名}）
 ├── download_count       # 下载次数，默认 0
+├── is_published         # 是否发布（前端展示控制）
 ├── sync_status          # pending/syncing/synced/failed
 ├── upload_time
 └── sync_time
+
+resource_tags            # 标签元数据（品牌/分类/系列统一管理）
+├── id                   # 主键（BIGSERIAL）
+├── type                 # 标签类型: doc_brand / doc_category / doc_series / sw_brand / sw_category / sw_series
+├── value                # 唯一标识 slug（如 siemens / plc-manual / s7-1200）
+├── label_zh             # 中文显示名
+├── parent_value         # 父级标签 value（doc_series 关联所属 doc_category；sw_series 关联所属 sw_category）
+├── brand_value          # 品牌关联（doc_series / sw_series 关联所属 brand）
+├── is_active            # 是否启用
+├── sort_order           # 排序
+├── created_at
+└── updated_at
 
 software                 # 软件包元数据
 ├── id                   # 主键（BIGSERIAL）
@@ -1027,15 +1085,30 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 
 ---
 
-## 附录 A. 品牌列表
+## 附录 A. 品牌与系列体系
 
-| 值 | 品牌 | 常用 PLC 系列 |
-|------|------|------|
-| `siemens` | 西门子 | S7-1200, S7-1500 |
-| `mitsubishi` | 三菱 | FX5U, R 系列 |
-| `omron` | 欧姆龙 | NJ/NX 系列 |
-| `keyence` | 基恩士 | KV-8000 |
-| `inovance` | 汇川 | AM600, Easy 系列 |
+> 实际数据存储于 `resource_tags` 表，以下为当前已导入文档的品牌清单及建议系列。
+
+| 品牌值 | 中文名 | 文档数 | 建议系列 |
+|--------|--------|:---:|------|
+| `siemens` | 西门子 | 10 | S7-1200, S7-1500, S7-300/400, ET 200, SINAMICS S120/G120, SIMATIC KTP/TP, SIMATIC WinCC Unified |
+| `mitsubishi` | 三菱 | 112 | FX 系列（FX1N/FX3U/FX5U）, Q 系列, L 系列（MELSEC-L）, iQ-R 系列, GOT2000, MELSERVO-J4/J5, CC-Link 通信模块 |
+| `omron` | 欧姆龙 | 45 | NJ/NX 系列, CJ1/CS1 系列, CP1E/CP1H, G5 伺服, NS 系列 HMI |
+| `fuji` | 富士 | 36 | MICREX-SX SPH 系列, ALPHA5 系列, D300win 编程软件 |
+| `delta` | 台达 | 8 | AH500 系列, M 系列变频器 |
+| `keyence` | 基恩士 | 7 | KV-X 系列, KV-8000, XMOTION |
+| `panasonic` | 松下 | 5 | MINAS A4/A5/A6 系列 |
+| `oriental-motor` | 东方马达 | 4 | AZ 系列, 步进电动机组合 |
+| `nachi` | 不二越 | 7 | CFD 系列机器人, TFD 系列 |
+| `beckhoff` | 倍福 | 2 | — |
+| `xinje` | 信捷 | 1 | — |
+| `inovance` | 汇川 | 1 | AutoShop |
+| `abb` | ABB | 1 | — |
+| `ckd` | CKD | 2 | SMB 系列, TS 型驱动器 |
+| `cognex` | 康耐视 | 1 | DataMan 260 |
+| `hokuyo` | 北阳 | 1 | — |
+
+> 总计 16 个品牌，243 个 PDF 文档。品牌和系列均可通过 Admin 设置页面动态增删，不需要改代码。
 
 ## 附录 B. 变更记录
 
@@ -1047,3 +1120,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.4.0 | 2025-06-17 | 新增 Portal 资源浏览页；下载改为 OSS Presigned URL 直链（Bucket 私有+后端签发 5 分钟签名 URL）；新增文件类型白名单；新增软件版本管理（software_versions 表）；新增短信降级方案；MCP 工具对齐 8 类文档分类；新增 API 统一响应格式；补全部署架构图 |
 | 0.5.0 | 2025-06-17 | 全面评审修复：Admin 去下载功能（归 Portal）；新增 daily download limit（5次/天/类型）+ download_logs 表；修复 sms_codes 冗余字段设计；Refresh token rotation + jti 黑名单；补充 benefits/footer API；明确 RAG/MCP 数据流；CORS+限流策略；补 OSS_REGION；开发计划调整 |
 | 0.6.0 | 2025-06-17 | 第二轮评审修复：明确 download_count vs download_logs 关系；下载流程图补每日限额步骤；补 429 响应格式；users/documents/software 补 id 主键；software 补 download_count；login_sessions 明确 UPSERT 唯一键；sms_codes 冷却逻辑精确到 MAX(created_at)；新增手机号格式校验；sync_logs document_id 可为 NULL；仓库链接标注硬编码；Admin 下载次数标注只读；部署图注释补 MCP→Milvus 查询说明 |
+| 0.7.0 | 2026-06-22 | 文档体系全面评审：① 新增 `series` 三层模型（品牌→分类→系列），documents 表增加 series/description/is_published 字段；② 新增 `resource_tags` 表统一管理品牌/分类/系列元数据，替代代码硬编码；③ 新增 `/api/v1/tags` CRUD 端点 + Admin 设置页面（品牌/分类/系列管理）；④ 文档支持 PATCH 更新元数据；⑤ OSS 文件命名规范定为 `品牌-分类-内容.pdf`，243 个 PDF 文件已按规范重命名并清理 `doc/` 非 PDF 残留；⑥ 品牌列表从 5 个扩展到 16 个，文档从 0 扩展到 243 个；⑦ 新增 robot-manual（机器人手册）分类；⑧ 新增导入与重命名脚本体系（import_legacy_docs / rename_unclear_docs / batch_rebrand_docs / reformat_three_docs / add_series_tags） |

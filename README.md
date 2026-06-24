@@ -11,7 +11,7 @@ openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git su
 - **手机号短信登录**：JWT + jti 黑名单 + refresh rotation；admin 拉黑/强制登出/审计日志
 - **三层标签体系**：品牌 → 分类 → 系列，全数据驱动（`resource_tags`），运营改标签免改代码
 - **文档/软件下载中心**：分页 + 筛选 + 在线预览，私有桶 + 5 分钟短期签名 URL
-- **🚀 浏览器直传 OSS**：大软件包（≤5GB）`init / complete / abort` 三段式 multipart，后端零文件带宽
+- **🚀 浏览器直传 OSS**：大软件包（≤5GB）`init / complete / abort` 三段式 multipart，后端零文件带宽（流程详见 [`prod/requirements.md` §4.3.6-2](prod/requirements.md#4362-上传安全设计浏览器直传-oss大文件)）
 - **🗂️ 存储后端抽象**：`STORAGE_BACKEND=local | s3` 一键切换，本地 HMAC 签名直链
 - **📊 运营数据看板**：访客埋点 + 在线人数 + 地理分布 + 今日·本月趋势
 - **📑 双轨配额**：文档下载 5/天、文档预览 20/天，独立计数，admin 豁免
@@ -89,48 +89,9 @@ graph TB
 
 ---
 
-## 🔁 直传 OSS 上传流程（v0.8.0 新增）
+## 🔁 直传 OSS 上传流程
 
-软件包可达数 GB，经后端中转会阻塞事件循环、撞 nginx body 限制。**大文件由浏览器直传 OSS**，后端只签名与落库：
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant B as 浏览器 (Admin)
-    participant API as Web API :8004
-    participant OSS as 对象存储
-    participant DB as PostgreSQL
-
-    B->>API: POST /software/upload/init<br/>{filename, size, brand, category, version}
-    API->>API: 校验品牌/分类/扩展名/大小
-    alt size > 64 MiB
-        API->>OSS: create_multipart_upload
-        OSS-->>API: upload_id
-        API->>API: 逐片签发 presigned PUT URL
-        API-->>B: {mode: multipart, token, part_urls[], upload_id}
-    else size ≤ 64 MiB
-        API->>API: 签发单个 presigned PUT URL
-        API-->>B: {mode: single, token, upload_url}
-    end
-
-    Note over B,OSS: 浏览器并发上传分片（默认并发 8）
-    B-)OSS: PUT part_1
-    B-)OSS: PUT part_2
-    B-)OSS: PUT part_N
-    OSS-->>B: ETags
-
-    B->>API: POST /software/upload/complete<br/>{token, parts[], file_hash}
-    alt multipart
-        API->>OSS: complete_multipart_upload(parts)
-    else single
-        API->>OSS: head_object 确认存在
-    end
-    API->>DB: INSERT software + software_versions
-    Note right of DB: 失败则 abort + delete<br/>避免幽灵文件
-    API-->>B: 200 OK + 软件元数据
-```
-
-> 本地存储模式（`STORAGE_BACKEND=local`）下 `init` 返回 `{mode: sync}`，自动回退到经后端的 `/software/upload`。
+详见 [`prod/requirements.md` §4.3.6-2](prod/requirements.md#4362-上传安全设计浏览器直传-oss大文件) — 含三段式握手、分片签名、本地模式回退的完整时序图与协议契约。
 
 ---
 

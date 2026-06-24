@@ -51,3 +51,6 @@ docker-compose.override.yml
 tmp/
 temp/
 models/
+
+# Local bulk-import run state (machine-specific paths/progress, not source)
+scripts/import_state.json

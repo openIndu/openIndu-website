@@ -7,7 +7,7 @@ from import_local_software import iter_targets, classify, extract_version, ROOT 
 print(f'scanning {ROOT}\n')
 n = 0
 total_bytes = 0
-for path, rel, size in iter_targets():
+for path, rel, size in iter_targets(include_huge=True):
     n += 1
     total_bytes += size
     brand, category, vh = classify(rel)

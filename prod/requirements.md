@@ -85,7 +85,9 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 > 下载中心是 Portal 独立页面。未登录用户可浏览列表；**预览与下载均需先登录且角色 ≥ member**。`user` 角色只能浏览列表。文档预览/下载、软件下载均经后端签发短期签名 URL（OSS 模式为 Presigned URL，本地模式为 HMAC 签名直链，详见 §4.3.6-2），用户直接获取文件，不经后端代理文件流。
 >
-> **每日下载限制**：文档和软件各独立计数，每个用户每天最多 5 次（基于 `download_logs` 表按当日统计），超限返回 429；**admin 角色豁免该限制**。⚠️ 当前实现中**文档「在线预览」也计入该限额并 +1 下载计数**（preview-link 与 download-link 共用计数逻辑）——此语义待产品确认（见演进方向）。
+> **每日下载限制**：文档和软件各独立计数，每个用户每天最多 5 次**下载**（基于 `download_logs` 表按当日统计），超限返回 429；**admin 角色豁免**。
+>
+> **文档在线预览采用独立限额**（v0.8.0 决策）：默认 20 次/天（`PREVIEW_DAILY_LIMIT`，`download_logs.resource_type=document_preview` 单独计数），**不占用下载额度、也不计入文档下载次数（download_count）**；超限同样返回 429，admin 豁免。预览仍设上限是为防止用预览接口绕过下载限制（inline 文件仍可另存）。
 
 #### 2.2.4 工作流（面向成员）
 
@@ -144,17 +146,16 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 ### 3.3 功能模块
 
-#### 3.3.1 官网内容管理
+#### 3.3.1 官网内容（静态硬编码，不做后台管理）
 
-> ⚠️ **实现状态说明**：本模块文档化程度高于实际落地。当前后端 `api/portal.py` 仅提供 `hero`（只读 GET）与 `solutions`（CRUD），**且 Admin 前台尚无对应的「官网内容管理」页面**（页面清单见 §3.3 末）。轮播/开源优势/页脚目前由 Portal 前端硬编码或静态呈现。以下保留为完整需求并标注状态。
+> 📌 **决策（v0.8.0）**：官网首页内容（Hero、解决方案、轮播图、开源优势、页脚）**确定由 Portal 前端静态硬编码**，**不纳入 Admin 动态管理**。原「官网内容管理」CMS 模块已取消。
+> - `Home.tsx` 直接内联 `solutions` 等内容，不调用 portal 内容 API；改文案需改前端代码并发版。
+> - 后端 `api/portal.py` 仍保留 `hero`（GET）与 `solutions`（CRUD）端点、`portalApi` 客户端亦残留 hero/solutions/carousel 方法，均为**历史遗留/预留，当前前台首页未使用**。
+> - 若未来重启动态 CMS，再行规划（补 carousel/benefits/footer 端点 + Admin 内容管理页）。
 
-| 功能点 | 说明 | 优先级 | 状态 |
-|--------|------|:---:|:---:|
-| Hero 配置 | 编辑主标题、副标题、按钮文案、背景样式 | P0 | 🚧 后端仅只读 `GET /portal/hero`，无编辑端点与管理页 |
-| 解决方案管理 | 增删改解决方案卡片（图标、标题、描述、链接、上架/下架状态） | P0 | 🚧 后端有 `/portal/solutions` CRUD，但 Admin 无管理页 |
-| 轮播图管理 | 上传图片、排序、启用/禁用 | P0 | 📋 无后端端点、无页面 |
-| 开源优势管理 | 编辑优势卡片内容 | P1 | 📋 无后端端点、无页面 |
-| 页脚配置 | 联系方式、友情链接、隐私声明、法律声明、关于 Cookies | P1 | 📋 无后端端点、无页面 |
+| 内容 | 当前承载 | 说明 |
+|------|------|------|
+| Hero / 解决方案 / 轮播图 / 开源优势 / 页脚 | Portal 前端静态硬编码 | 内容变更 = 改前端代码 + 发版，不经后台 |
 
 #### 3.3.2 用户管理
 
@@ -326,7 +327,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 设置 / 标签管理 | `settings/SettingsView.tsx`、`settings/TagsView.tsx` | §3.3.6 / §3.3.7 |
 | 登录 | `Login.tsx` | §2.2.2 |
 
-> ⚠️ **缺口**：尚无「官网内容管理」页面（§3.3.1 的 Hero/轮播/优势/页脚编辑），为当前最大需求-实现缺口。
+> 📌 **说明**：无「官网内容管理」页面属**设计决策**——官网内容已定为 Portal 前端静态硬编码（§3.3.1），非实现缺口。
 
 ---
 
@@ -441,17 +442,15 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 | 状态 |
 |------|------|------|------|:---:|
-| `/portal/hero` | GET | 获取 Hero 配置 | 公开 | ✅ |
-| `/portal/hero` | PUT | 更新 Hero 配置 | admin | 📋 未实现 |
-| `/portal/solutions` | GET | 获取解决方案列表 | 公开 | ✅ |
-| `/portal/solutions` | POST | 新增解决方案 | admin | ✅ |
-| `/portal/solutions/{id}` | PUT | 更新解决方案 | admin | ✅ |
-| `/portal/solutions/{id}` | DELETE | 删除解决方案 | admin | ✅ |
-| `/portal/carousel` | GET/POST/PUT/DELETE | 轮播图 CRUD | 公开/admin | 📋 未实现 |
-| `/portal/benefits` | GET/PUT | 开源优势 | 公开/admin | 📋 未实现 |
-| `/portal/footer` | GET/PUT | 页脚配置 | 公开/admin | 📋 未实现 |
+| `/portal/hero` | GET | 获取 Hero 配置 | 公开 | ⬜ 存在但前台未用 |
+| `/portal/hero` | PUT | 更新 Hero 配置 | admin | 🚫 不实现 |
+| `/portal/solutions` | GET | 获取解决方案列表 | 公开 | ⬜ 存在但前台未用 |
+| `/portal/solutions` | POST/PUT/DELETE | 解决方案增改删 | admin | ⬜ 存在但前台未用 |
+| `/portal/carousel` | — | 轮播图 CRUD | — | 🚫 不实现（静态硬编码） |
+| `/portal/benefits` | — | 开源优势 | — | 🚫 不实现（静态硬编码） |
+| `/portal/footer` | — | 页脚配置 | — | 🚫 不实现（静态硬编码） |
 
-> ⚠️ 当前 `api/portal.py` 仅实现 `hero`（GET）与 `solutions`（GET/POST/PUT/DELETE）。Hero 编辑、carousel/benefits/footer 端点均为规划项，Portal 对应内容现由前端硬编码/静态呈现。
+> 📌 **v0.8.0 决策**：官网内容已定为 Portal 前端**静态硬编码**（见 §3.3.1）。`hero`/`solutions` 端点虽存在但**前台首页不再调用**；carousel/benefits/footer 不再规划实现。本模块视为历史遗留/预留。
 
 #### 4.3.3 用户管理模块 (`/api/v1/users`)
 
@@ -495,7 +494,7 @@ openIndu-backend/
 | `/documents/categories/list` | GET | 文档分类列表 | 公开 |
 | `/documents/{id}` | GET | 文档详情（含下载次数） | 公开 |
 | `/documents/{id}/download-link` | GET | 获取下载签名 URL，+1 计数。每日限 5 次（admin 豁免），超限 429 | member |
-| `/documents/{id}/preview-link` | GET | 获取**内嵌预览**签名 URL（inline），同样 +1 计数并计入每日限额 🆕 | member |
+| `/documents/{id}/preview-link` | GET | 获取**内嵌预览**签名 URL（inline）。**独立预览限额**（默认 20次/天，不占下载额度、不计 download_count，超限 429，admin 豁免）🆕 | member |
 | `/documents/publish/bulk` | PATCH | **批量**发布/取消（按 ids 或 brand/category/series/keyword 条件）🆕 | admin |
 | `/documents/{id}` | PATCH | 更新元数据（brand/category/series/description/original_name） | admin |
 | `/documents/{id}/publish` | PATCH | 切换单个文档发布状态 🆕 | admin |
@@ -1067,6 +1066,7 @@ plc_knowledge            # 向量知识库
 | `OSS_DOC_PREFIX` | `documents` | 文档对象前缀（旧数据前缀 `OSS_LEGACY_DOC_PREFIX=doc`） |
 | `OSS_SOFTWARE_PREFIX` | `soft` | 软件对象前缀（原 `software/`，已重命名） |
 | `DOWNLOAD_DAILY_LIMIT` | `5` | 每用户每类型每日下载上限 |
+| `PREVIEW_DAILY_LIMIT` | `20` | 每用户每日文档预览上限（独立于下载）🆕 |
 | `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
 | `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
 | `UPLOAD_PART_SIZE_MB` / `UPLOAD_PRESIGN_EXPIRE_MINUTES` | `64` / `120` | 直传分片大小 / presigned 有效期 |
@@ -1288,4 +1288,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.5.0 | 2025-06-17 | 全面评审修复：Admin 去下载功能（归 Portal）；新增 daily download limit（5次/天/类型）+ download_logs 表；修复 sms_codes 冗余字段设计；Refresh token rotation + jti 黑名单；补充 benefits/footer API；明确 RAG/MCP 数据流；CORS+限流策略；补 OSS_REGION；开发计划调整 |
 | 0.6.0 | 2025-06-17 | 第二轮评审修复：明确 download_count vs download_logs 关系；下载流程图补每日限额步骤；补 429 响应格式；users/documents/software 补 id 主键；software 补 download_count；login_sessions 明确 UPSERT 唯一键；sms_codes 冷却逻辑精确到 MAX(created_at)；新增手机号格式校验；sync_logs document_id 可为 NULL；仓库链接标注硬编码；Admin 下载次数标注只读；部署图注释补 MCP→Milvus 查询说明 |
 | 0.7.0 | 2026-06-22 | 文档体系全面评审：① 新增 `series` 三层模型（品牌→分类→系列），documents 表增加 series/description/is_published 字段；② 新增 `resource_tags` 表统一管理品牌/分类/系列元数据，替代代码硬编码；③ 新增 `/api/v1/tags` CRUD 端点 + Admin 设置页面（品牌/分类/系列管理）；④ 文档支持 PATCH 更新元数据；⑤ OSS 文件命名规范定为 `品牌-分类-内容.pdf`，243 个 PDF 文件已按规范重命名并清理 `doc/` 非 PDF 残留；⑥ 品牌列表从 5 个扩展到 16 个，文档从 0 扩展到 243 个；⑦ 新增 robot-manual（机器人手册）分类；⑧ 新增导入与重命名脚本体系（import_legacy_docs / rename_unclear_docs / batch_rebrand_docs / reformat_three_docs / add_series_tags） |
-| 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`（标注「预览计入下载限额」待确认）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 🚧 标注 Portal 官网内容管理（轮播/优势/页脚 + Admin 内容管理页）实际未落地；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |
+| 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`，**预览采用独立限额**（默认 20次/天，不占下载额度、不计 download_count，`PREVIEW_DAILY_LIMIT`）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 📌 Portal 官网内容**定为前端静态硬编码**（取消动态 CMS：hero 编辑 / carousel / benefits / footer + Admin 内容管理页均不实现）；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |

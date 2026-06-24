@@ -1,6 +1,9 @@
 # openIndu 平台需求文档
 
-> 版本: 0.7.0 | 日期: 2026-06-22 | 状态: 草案
+> 版本: 0.8.0 | 日期: 2026-06-24 | 状态: 草案
+>
+> **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
+> ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
 
 ---
 
@@ -59,21 +62,30 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 验证码重发 | 60 秒冷却后重新发送 | P0 |
 | 登录态保持 | JWT access token（15min）+ refresh token（7d） | P0 |
 | 登录后跳转 | 登录成功后跳转到来源页，默认进入资源中心 | P1 |
-| 个人中心 | 登录后显示个人中心入口，可设置昵称；手机号仅脱敏展示 | P1 |
+| 个人中心 | 登录后显示个人中心入口（账号设置页 `AccountSettings.tsx`），可设置昵称；手机号仅脱敏展示 | P1 |
+| 修改手机号 | 个人中心可换绑手机号（新号需短信验证码，`POST /auth/change-phone`） | P1 |
+| 注销账号 | 个人中心可注销自己的账号（`DELETE /auth/me`） | P1 |
+| 法律页面 | 隐私声明、法律声明、Cookies 等静态法律页（`LegalPages.tsx`） | P1 |
 | 隐私声明确认 | 登录/注册前必须勾选同意隐私声明 | P1 |
 
 > 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用。手机号属于敏感信息，Portal 页面以及 Admin 的登录日志/审计日志均仅允许脱敏展示。用户登录/注册前需阅读并勾选同意隐私声明。
 
-#### 2.2.3 资源浏览（面向成员）
+#### 2.2.3 下载中心（面向成员）
 
-| 功能点 | 说明 | 优先级 |
-|--------|------|:---:|
-| 文档浏览 | 分页展示文档列表，支持按品牌/分类/关键词筛选，显示下载次数 | P0 |
-| 文档下载 | member 及以上可见下载按钮，调用后端校验后下载，每日限 5 次 | P0 |
-| 软件浏览 | 分页展示软件列表，支持按品牌/分类/关键词筛选，显示下载次数 | P0 |
-| 软件下载 | member 及以上可见下载按钮，调用后端校验后下载，每日限 5 次 | P0 |
+> 原「资源浏览」已更名为「下载中心」（Download Center）。Portal 独立页面，对应前端 `Resources.tsx`。
 
-> 资源浏览页是 Portal 上的独立页面（`/resources/documents` 和 `/resources/software`）。未登录用户可浏览资源列表；点击下载时必须先登录。`user` 角色只能浏览列表，`member` 及以上可下载。所有下载经后端签发 OSS Presigned URL（5 分钟有效），用户直接从 OSS 下载，不经过后端代理。**每日下载限制**：文档和软件各独立计数，每个用户每天最多下载 5 次（基于 `download_logs` 表按日期统计），超限返回 429。
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 文档浏览 | 分页展示，支持品牌/分类/系列/关键词筛选 + chip 快捷筛选 + 每页条数选择，仅展示已发布文档 | P0 | ✅ |
+| 文档在线预览 | member 及以上点击「预览」，浏览器内嵌渲染 PDF（后端签发 inline 签名 URL） | P0 | ✅ |
+| 文档下载 | member 及以上可见下载按钮，调用后端校验后下载，每日限 5 次 | P0 | ✅ |
+| 软件浏览 | 分页 + 筛选，**按版本拆分展示**（每个版本一行），显示文件大小与版本数 | P0 | ✅ |
+| 软件下载 | member 及以上可下载指定版本，每日限 5 次 | P0 | ✅ |
+| 切换标签防竞态 | 文档/软件标签切换时丢弃过期请求结果，避免错位 | P1 | ✅ |
+
+> 下载中心是 Portal 独立页面。未登录用户可浏览列表；**预览与下载均需先登录且角色 ≥ member**。`user` 角色只能浏览列表。文档预览/下载、软件下载均经后端签发短期签名 URL（OSS 模式为 Presigned URL，本地模式为 HMAC 签名直链，详见 §4.3.6-2），用户直接获取文件，不经后端代理文件流。
+>
+> **每日下载限制**：文档和软件各独立计数，每个用户每天最多 5 次（基于 `download_logs` 表按当日统计），超限返回 429；**admin 角色豁免该限制**。⚠️ 当前实现中**文档「在线预览」也计入该限额并 +1 下载计数**（preview-link 与 download-link 共用计数逻辑）——此语义待产品确认（见演进方向）。
 
 #### 2.2.4 工作流（面向成员）
 
@@ -134,13 +146,15 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 #### 3.3.1 官网内容管理
 
-| 功能点 | 说明 | 优先级 |
-|--------|------|:---:|
-| Hero 配置 | 编辑主标题、副标题、按钮文案、背景样式 | P0 |
-| 解决方案管理 | 增删改解决方案卡片（图标、标题、描述、链接、上架/下架状态） | P0 |
-| 轮播图管理 | 上传图片、排序、启用/禁用 | P0 |
-| 开源优势管理 | 编辑优势卡片内容 | P1 |
-| 页脚配置 | 联系方式、友情链接、隐私声明、法律声明、关于 Cookies | P1 |
+> ⚠️ **实现状态说明**：本模块文档化程度高于实际落地。当前后端 `api/portal.py` 仅提供 `hero`（只读 GET）与 `solutions`（CRUD），**且 Admin 前台尚无对应的「官网内容管理」页面**（页面清单见 §3.3 末）。轮播/开源优势/页脚目前由 Portal 前端硬编码或静态呈现。以下保留为完整需求并标注状态。
+
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| Hero 配置 | 编辑主标题、副标题、按钮文案、背景样式 | P0 | 🚧 后端仅只读 `GET /portal/hero`，无编辑端点与管理页 |
+| 解决方案管理 | 增删改解决方案卡片（图标、标题、描述、链接、上架/下架状态） | P0 | 🚧 后端有 `/portal/solutions` CRUD，但 Admin 无管理页 |
+| 轮播图管理 | 上传图片、排序、启用/禁用 | P0 | 📋 无后端端点、无页面 |
+| 开源优势管理 | 编辑优势卡片内容 | P1 | 📋 无后端端点、无页面 |
+| 页脚配置 | 联系方式、友情链接、隐私声明、法律声明、关于 Cookies | P1 | 📋 无后端端点、无页面 |
 
 #### 3.3.2 用户管理
 
@@ -151,8 +165,8 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 拉黑用户 | 将用户设为黑名单状态，禁止登录 | P0 |
 | 强制登出 | 使指定用户的所有 Token 立即失效，强制下线 | P0 |
 | 解除拉黑 | 将黑名单用户恢复正常状态 | P1 |
-| 在线统计 | 展示当前在线人数、登录地理位置分布 | P1 |
-| 操作日志 | 记录管理员对用户的操作历史 | P2 |
+| 在线统计 | 展示当前在线人数、登录地理位置分布（`OnlineStats.tsx`） | P1 |
+| 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏） | P2 ✅ |
 
 **拉黑与强制登出机制**：
 
@@ -185,18 +199,35 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 在线人数 = SELECT COUNT(DISTINCT user_id) FROM login_sessions WHERE is_active = true
 ```
 
+#### 3.3.2-1 数据看板（Dashboard）🆕
+
+> Admin 登录后的着陆页（`Dashboard.tsx`），聚合平台运营指标。数据来源为 `visit_events`（访客埋点）+ `login_sessions`（登录会话）+ `users/documents/software` 统计。对应 `GET /api/v1/stats/dashboard`。
+
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 总览卡片 | 总用户/文档/软件数、近 30 天新增用户、近 30 天访客数 | P1 | ✅ |
+| 在线实时 | 在线登录用户数、在线访客数、匿名在线数 | P1 | ✅ |
+| 今日/本月 | 今日·本月活跃用户、新增用户/文档/软件 | P1 | ✅ |
+| 趋势图 | 近 30 天每日注册/访客/登录；本月逐日注册/访客（零填充） | P1 | ✅ |
+| 地理分布地图 | 访客 + 在线会话按地理位置聚合（含经纬度），地图标注 `名称:数量` | P1 | ✅ |
+
+**访客埋点机制**：Portal 前端在页面访问时调用 `POST /api/v1/visits/track`（匿名亦记录），后端解析 IP 地理位置写入 `visit_events` 表，区分已认证/匿名访客。看板的访客数按 `DISTINCT ip_address` 统计。
+
 #### 3.3.3 文档管理
 
-> Admin 后台仅负责文档的**上传、编辑元数据、删除和同步管理**。文档浏览和下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
+> Admin 后台仅负责文档的**上传、编辑元数据、删除、发布和同步管理**。文档浏览/预览/下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
 
-| 功能点 | 说明 | 优先级 |
-|--------|------|:---:|
-| 文档列表 | 分页展示，支持按品牌/分类/系列/关键词筛选，显示下载次数（只读展示） | P0 |
-| 文档上传 | 上传 PDF，选择品牌、分类、系列（可选）；文件名自动以 `品牌-分类-内容.pdf` 格式存入 OSS | P0 |
-| 文档编辑 | 修改品牌、分类、系列、描述等元数据；不可修改已上传的文件本体 | P0 |
-| 文档删除 | 级联删除 OSS + 数据库 + RAG 向量数据 | P0 |
-| 同步触发 | 手动触发 OSS → RAG 全量/增量同步 | P0 |
-| 同步状态 | 查看同步进度和日志 | P1 |
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 文档列表 | 分页展示，支持按品牌/分类/系列/关键词筛选，显示下载次数（只读展示） | P0 | ✅ |
+| 文档上传 | 上传 PDF，选择品牌、分类、系列（可选）；存入对象存储后**后台异步触发 RAG 同步** | P0 | ✅ |
+| 文档编辑 | 修改品牌、分类、系列、描述、显示名（original_name）等元数据；不可修改文件本体 | P0 | ✅ |
+| 文档发布 | 单个 `is_published` 上/下架开关 + **批量发布/取消**（按 ids 或品牌/分类/系列/关键词条件） | P0 | ✅ 🆕 |
+| 文档删除 | 级联删除对象存储 + 数据库 + RAG 向量数据 | P0 | ✅ |
+| 同步触发 | 手动触发单文档 RAG 同步（`POST /documents/{id}/sync`）/ OSS→RAG 全量同步 | P0 | ✅ |
+| 同步状态 | 查看同步进度和日志 | P1 | ✅ |
+
+> **发布控制**：`documents.is_published` 控制 Portal 是否展示。Portal 列表带 `published_only=true` 仅取已发布文档；Admin 列表展示全部。批量发布端点见 §4.3.5。
 
 **文档分类体系**（存储于 `resource_tags` 表，type = `doc_category`，可在设置页维护）：
 
@@ -222,13 +253,18 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 
 #### 3.3.4 软件管理
 
-> Admin 后台仅负责软件的**上传、删除和版本管理**。软件浏览和下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
+> Admin 后台仅负责软件的**上传、删除、发布和版本管理**。软件浏览和下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
 
-| 功能点 | 说明 | 优先级 |
-|--------|------|:---:|
-| 软件列表 | 分页展示，支持按品牌/分类/关键词筛选，显示下载次数（只读展示） | P0 |
-| 软件上传 | 上传软件包（zip/exe/msi 等），选择品牌和分类 | P0 |
-| 软件删除 | 级联删除 OSS + 数据库记录 | P0 |
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 软件列表 | 分页 + 筛选，显示下载次数、文件大小、版本数；支持 `expand_versions` **按版本展开**（每版本一行） | P0 | ✅ |
+| 软件上传 | 上传软件包（zip/exe/msi/rar/7z），选品牌/分类/版本号；**浏览器直传 OSS**（大包 5GB+，见 §4.3.6-2），带上传进度条 | P0 | ✅ 🆕 |
+| 版本管理 | 为已有软件新增版本、删除指定版本；每版本保留独立显示名（original_name） | P0 | ✅ 🆕 |
+| 软件发布 | **版本级发布**：单版本 toggle + 批量发布/取消（version_ids 或 software ids 或条件）；`Software.is_published` 为「任一版本已发布」的派生镜像 | P0 | ✅ 🆕 |
+| 软件编辑 | 修改品牌、分类、描述、显示名等元数据 | P1 | ✅ |
+| 软件删除 | 级联删除对象存储 + 数据库（含全部版本） | P0 | ✅ |
+
+> **发布模型（重要）**：软件发布粒度为**版本**（`software_versions.is_published`），而非软件整体。`software.is_published` 仅作兼容镜像（= 任一版本已发布）。Portal 带 `published_only` 时按版本过滤。批量/单项发布端点见 §4.3.6。
 
 **软件分类体系**：
 
@@ -252,8 +288,10 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 品牌管理 | 增删改品牌标签（`doc_brand` / `sw_brand`），含中文名称、slug、启用/停用 | P0 |
 | 文档分类管理 | 增删改文档分类（`doc_category`） | P0 |
 | 软件分类管理 | 增删改软件分类（`sw_category`） | P0 |
-| 系列管理 | 增删改产品系列（`doc_series` / `sw_series`），关联所属品牌和分类 | P0 |
+| 系列管理 | 增删改**文档**产品系列（`doc_series`），关联所属品牌和分类 | P0 |
 | 排序 | 每类标签可配置 sort_order 控制下拉顺序 | P1 |
+
+> ♻️ **变更**：**软件系列（`sw_series`）已移除**——标签管理 UI 与上传表单不再提供软件系列。`software.series` 数据列暂时保留（历史数据，`to_dict` 仍输出），属待清理技术债（见演进方向）。
 
 #### 3.3.7 系统配置
 
@@ -273,6 +311,23 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 分块参数 | chunk_size、chunk_overlap | P1 |
 | 同步间隔 | 定时同步间隔（分钟） | P1 |
 
+### 3.4 Admin 实际页面清单（as-built）
+
+> 以下为当前 `openIndu-admin/src/app/pages/` 实际存在的页面，供对照需求落地范围：
+
+| 页面 | 文件 | 对应模块 |
+|------|------|---------|
+| 数据看板 | `Dashboard.tsx` | §3.3.2-1 |
+| 用户列表 / 详情 | `users/UserList.tsx`、`users/UserDetail.tsx` | §3.3.2 |
+| 在线统计 | `stats/OnlineStats.tsx` | §3.3.2 |
+| 审计日志 | `stats/AuditLogs.tsx` | §3.3.2 |
+| 文档列表 / 上传 | `documents/DocumentList.tsx`、`documents/DocumentUpload.tsx` | §3.3.3 |
+| 软件列表 / 上传 | `software/SoftwareList.tsx`、`software/SoftwareUpload.tsx` | §3.3.4 |
+| 设置 / 标签管理 | `settings/SettingsView.tsx`、`settings/TagsView.tsx` | §3.3.6 / §3.3.7 |
+| 登录 | `Login.tsx` | §2.2.2 |
+
+> ⚠️ **缺口**：尚无「官网内容管理」页面（§3.3.1 的 Hero/轮播/优势/页脚编辑），为当前最大需求-实现缺口。
+
 ---
 
 ## 4. openIndu-backend — 后端服务
@@ -285,24 +340,33 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 openIndu-backend/
 ├── app/
 │   ├── web_app.py              ← FastAPI App 1: Web REST API
-│   │   ├── api/auth.py         ← 短信登录/注册/JWT
-│   │   ├── api/portal.py       ← 官网内容管理
+│   │   ├── api/auth.py         ← 短信登录/注册/JWT/改手机号/注销
+│   │   ├── api/portal.py       ← 官网内容（hero 只读 + solutions CRUD）
 │   │   ├── api/users.py        ← 用户管理（拉黑/强制登出）
-│   │   ├── api/documents.py    ← 文档 CRUD + 下载计数
-│   │   ├── api/software.py     ← 软件 CRUD + 下载计数
+│   │   ├── api/admin.py        ← 管理员审计日志 🆕
+│   │   ├── api/documents.py    ← 文档 CRUD + 预览/下载 + 发布 + 同步
+│   │   ├── api/software.py     ← 软件/版本 CRUD + 直传 OSS + 发布
+│   │   ├── api/files.py        ← 本地存储文件下载（签名校验）🆕
 │   │   ├── api/sync.py         ← 同步任务
 │   │   ├── api/config.py       ← 业务参数配置
+│   │   ├── api/tags.py         ← 品牌/分类/系列标签 CRUD
 │   │   ├── api/brand_mapping.py
-│   │   └── api/stats.py        ← 在线统计
+│   │   ├── api/stats.py        ← 在线统计 + 数据看板 🆕
+│   │   └── api/visits.py       ← 访客埋点 🆕
 │   │
 │   ├── mcp_app.py              ← FastAPI App 2: MCP Server
 │   │   └── mcp/
 │   │       ├── server.py       ← MCP 协议处理
 │   │       └── tools.py        ← MCP 工具定义（search_plc_manual 等）
 │   │
-│   ├── models/                 ← 共享数据模型
+│   ├── models/                 ← 共享数据模型（含 visit_event 🆕）
 │   ├── services/               ← 共享业务逻辑
-│   ├── core/                   ← 共享配置/依赖
+│   │   ├── storage_service.py  ← 存储门面：local/OSS 路由 🆕
+│   │   ├── file_storage.py     ← 本地文件系统后端 🆕
+│   │   ├── oss_service.py      ← OSS/S3 后端（含 multipart 直传）
+│   │   ├── milvus_service.py / rag_sync_service.py / geo_service.py / auth_service.py
+│   ├── core/                   ← 共享配置/依赖/工具（utils.ok 统一响应）
+│   ├── tasks/                  ← 定时任务
 │   └── middleware/             ← 共享中间件（token 黑名单校验、在线统计）
 │
 ├── requirements.txt
@@ -342,7 +406,9 @@ openIndu-backend/
 | `/auth/register` | POST | 手机号 + 验证码注册，首个用户自动 admin | 公开 |
 | `/auth/refresh` | POST | 刷新 access token | 公开 |
 | `/auth/me` | GET | 获取当前用户信息 | 登录 |
-| `/auth/me` | PATCH | 更新当前用户资料（昵称等，手机号不可修改） | 登录 |
+| `/auth/me` | PATCH | 更新当前用户资料（昵称等） | 登录 |
+| `/auth/me` | DELETE | 注销当前账号 🆕 | 登录 |
+| `/auth/change-phone` | POST | 换绑手机号（新号需短信验证码）🆕 | 登录 |
 | `/auth/logout` | POST | 登出（将当前 token jti 加入黑名单） | 登录 |
 
 **验证码规则**：
@@ -373,22 +439,19 @@ openIndu-backend/
 
 #### 4.3.2 官网内容模块 (`/api/v1/portal`)
 
-| 端点 | 方法 | 说明 | 权限 |
-|------|------|------|------|
-| `/portal/hero` | GET | 获取 Hero 配置 | 公开 |
-| `/portal/hero` | PUT | 更新 Hero 配置 | admin |
-| `/portal/solutions` | GET | 获取解决方案列表 | 公开 |
-| `/portal/solutions` | POST | 新增解决方案 | admin |
-| `/portal/solutions/{id}` | PUT | 更新解决方案 | admin |
-| `/portal/solutions/{id}` | DELETE | 删除解决方案 | admin |
-| `/portal/carousel` | GET | 获取轮播图列表 | 公开 |
-| `/portal/carousel` | POST | 上传轮播图 | admin |
-| `/portal/carousel/{id}` | PUT | 更新轮播图 | admin |
-| `/portal/carousel/{id}` | DELETE | 删除轮播图 | admin |
-| `/portal/benefits` | GET | 获取开源优势列表 | 公开 |
-| `/portal/benefits` | PUT | 更新开源优势卡片 | admin |
-| `/portal/footer` | GET | 获取页脚配置 | 公开 |
-| `/portal/footer` | PUT | 更新页脚配置 | admin |
+| 端点 | 方法 | 说明 | 权限 | 状态 |
+|------|------|------|------|:---:|
+| `/portal/hero` | GET | 获取 Hero 配置 | 公开 | ✅ |
+| `/portal/hero` | PUT | 更新 Hero 配置 | admin | 📋 未实现 |
+| `/portal/solutions` | GET | 获取解决方案列表 | 公开 | ✅ |
+| `/portal/solutions` | POST | 新增解决方案 | admin | ✅ |
+| `/portal/solutions/{id}` | PUT | 更新解决方案 | admin | ✅ |
+| `/portal/solutions/{id}` | DELETE | 删除解决方案 | admin | ✅ |
+| `/portal/carousel` | GET/POST/PUT/DELETE | 轮播图 CRUD | 公开/admin | 📋 未实现 |
+| `/portal/benefits` | GET/PUT | 开源优势 | 公开/admin | 📋 未实现 |
+| `/portal/footer` | GET/PUT | 页脚配置 | 公开/admin | 📋 未实现 |
+
+> ⚠️ 当前 `api/portal.py` 仅实现 `hero`（GET）与 `solutions`（GET/POST/PUT/DELETE）。Hero 编辑、carousel/benefits/footer 端点均为规划项，Portal 对应内容现由前端硬编码/静态呈现。
 
 #### 4.3.3 用户管理模块 (`/api/v1/users`)
 
@@ -400,12 +463,25 @@ openIndu-backend/
 | `/users/{id}/unblacklist` | POST | 解除拉黑 | admin |
 | `/users/{id}/force-logout` | POST | 强制登出（仅使 token 失效，不拉黑） | admin |
 
-#### 4.3.4 在线统计模块 (`/api/v1/stats`)
+#### 4.3.4 统计与数据看板模块 (`/api/v1/stats`)
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
+| `/stats/dashboard` | GET | 运营数据看板：总览/在线/今日·本月/趋势/地理分布（详见 §3.3.2-1）🆕 | admin |
 | `/stats/online` | GET | 当前在线人数 + 地理位置分布 | admin |
-| `/stats/login-history` | GET | 登录历史记录（分页） | admin |
+| `/stats/login-history` | GET | 登录历史记录（分页，支持 `keyword` 手机号 + `status` online/offline 筛选） | admin |
+
+#### 4.3.4-1 访客埋点模块 (`/api/v1/visits`) 🆕
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/visits/track` | POST | 记录一次页面访问（匿名/已认证均记录，解析 IP 地理位置写入 `visit_events`） | 公开 |
+
+#### 4.3.4-2 管理员审计模块 (`/api/v1/admin`) 🆕
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/admin/audit-logs` | GET | 管理员操作审计日志（拉黑/解封/强制登出/改角色，手机号脱敏） | admin |
 
 > 🆕 隐私保护：`/stats/login-history`（登录日志）与 `/admin/audit-logs`（审计日志）返回的手机号均做脱敏处理（`138****0000`，保留前 3 后 4 位）。脱敏在后端完成，完整手机号不出服务端；按手机号关键词搜索仍按完整号匹配，仅展示脱敏。
 
@@ -413,12 +489,18 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword），含下载次数 | 公开 |
-| `/documents/upload` | POST | 上传 PDF，含 brand/category/series/description | admin |
+| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数 | 公开 |
+| `/documents/upload` | POST | 上传 PDF（brand/category/series/description），后台异步触发 RAG 同步 | admin |
+| `/documents/brands/list` | GET | 文档品牌列表 | 公开 |
+| `/documents/categories/list` | GET | 文档分类列表 | 公开 |
 | `/documents/{id}` | GET | 文档详情（含下载次数） | 公开 |
+| `/documents/{id}/download-link` | GET | 获取下载签名 URL，+1 计数。每日限 5 次（admin 豁免），超限 429 | member |
+| `/documents/{id}/preview-link` | GET | 获取**内嵌预览**签名 URL（inline），同样 +1 计数并计入每日限额 🆕 | member |
+| `/documents/publish/bulk` | PATCH | **批量**发布/取消（按 ids 或 brand/category/series/keyword 条件）🆕 | admin |
 | `/documents/{id}` | PATCH | 更新元数据（brand/category/series/description/original_name） | admin |
-| `/documents/{id}/download-link` | GET | 获取 OSS Presigned URL（5 分钟有效），+1 下载计数。每日限 5 次，超限返回 429 | member |
-| `/documents/{id}` | DELETE | 级联删除 OSS + DB + RAG 向量 | admin |
+| `/documents/{id}/publish` | PATCH | 切换单个文档发布状态 🆕 | admin |
+| `/documents/{id}/sync` | POST | 手动触发单文档 RAG 同步（后台任务） | admin |
+| `/documents/{id}` | DELETE | 级联删除对象存储 + DB + RAG 向量 | admin |
 
 #### 4.3.5-1 标签管理模块 (`/api/v1/tags`)
 
@@ -455,15 +537,23 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/software` | GET | 软件列表（分页+筛选），含下载次数和最新版本号 | 公开 |
-| `/software/upload` | POST | 上传软件包，选择品牌、分类和版本号 | admin |
+| `/software` | GET | 软件列表（分页+筛选+`published_only`+`expand_versions`），含下载次数/大小/版本数 | 公开 |
+| `/software/upload` | POST | 同步上传软件包（小包，经后端流式中转） | admin |
+| `/software/upload/init` | POST | **直传 OSS 第一步**：校验并签发 presigned URL（single/multipart）+ 上传凭证 token 🆕 | admin |
+| `/software/upload/complete` | POST | **直传 OSS 第二步**：合并分片并落库（可带 `software_id` 给已有软件加版本）🆕 | admin |
+| `/software/upload/abort` | POST | 取消直传，清理 OSS 分片/对象 🆕 | admin |
+| `/software/brands/list` | GET | 软件品牌列表 | 公开 |
+| `/software/categories/list` | GET | 软件分类列表 | 公开 |
 | `/software/{id}` | GET | 软件详情（含下载次数和所有版本列表） | 公开 |
-| `/software/{id}/download-link` | GET | 获取最新版本 OSS Presigned URL，+1 下载计数。每日限 5 次（软件），超限返回 429 | member |
-| `/software/{id}/versions/{vid}/download-link` | GET | 获取指定版本 OSS Presigned URL。每日限 5 次（软件），超限返回 429 | member |
-| `/software/{id}` | DELETE | 级联删除软件及所有版本（OSS + 数据库） | admin |
-| `/software/{id}/versions` | POST | 为已有软件添加新版本 | admin |
+| `/software/{id}/download-link` | GET | 最新版本下载签名 URL，+1 计数。每日限 5 次（admin 豁免），超限 429 | member |
+| `/software/{id}/versions/{vid}/download-link` | GET | 指定版本下载签名 URL，每日限 5 次 | member |
+| `/software/{id}` | PATCH | 更新软件元数据（brand/category/description/original_name）🆕 | admin |
+| `/software/publish/bulk` | PATCH | **批量**发布/取消（version_ids 或 software ids 或条件）🆕 | admin |
+| `/software/{id}/publish` | PATCH | 切换软件全部版本发布状态（兼容旧单行开关）🆕 | admin |
+| `/software/{id}/versions/{vid}/publish` | PATCH | 切换**单个版本**发布状态 🆕 | admin |
+| `/software/{id}/versions` | POST | 为已有软件添加新版本（同步上传） | admin |
 | `/software/{id}/versions/{vid}` | DELETE | 删除指定版本 | admin |
-| `/software/categories/list` | GET | 软件分类列表 | 登录 |
+| `/software/{id}` | DELETE | 级联删除软件及所有版本（对象存储 + 数据库） | admin |
 
 #### 4.3.6-1 下载安全设计：OSS Presigned URL
 
@@ -601,6 +691,53 @@ async function handleDownload(docId: number) {
 | 断点续传 | OSS 原生支持 |
 | 零额外配置 | 不需要 CDN、不需要额外鉴权配置 |
 | 无文件大小限制 | 软件包无论多大都可以下载 |
+
+#### 4.3.6-2 上传安全设计：浏览器直传 OSS（大文件）🆕
+
+> 软件包可达数 GB，若经后端中转会阻塞事件循环、占用内存、撞上 nginx body/超时限制。因此**大文件由浏览器直传 OSS**，后端只负责签名与落库，文件体不经过 FastAPI/nginx。
+
+**三段式握手**（`api/software.py`）：
+
+```
+1. POST /software/upload/init
+   后端校验品牌/分类/扩展名/大小 → 生成 oss_key（可读稳定键：原名+时间戳）
+   ├── size ≤ part_size：签发单个 presigned PUT URL（mode=single）
+   └── size >  part_size：create_multipart_upload → 逐片签发 presigned URL（mode=multipart）
+   返回携带 oss_key/upload_id 的短期 JWT 上传凭证（token，默认 2h）
+   ※ 本地存储后端无直传能力 → 返回 {mode: "sync"} 回退到 POST /software/upload
+
+2. 浏览器直接 PUT 文件体到 OSS（单个或并发分片，默认并发 8、分片 64MB）
+
+3. POST /software/upload/complete  { token, parts[], file_hash }
+   多片 → complete_multipart_upload（失败则 abort）；单片 → head_object 确认存在
+   → 写入 software + software_versions（失败回滚并删除已传对象）
+   （传 software_id 时则为已有软件追加新版本）
+
+   取消：POST /software/upload/abort { token } → abort_multipart_upload / 删除对象
+```
+
+| 参数 | 默认值 | 配置项 |
+|------|:---:|------|
+| 分片大小 | 64 MiB | `UPLOAD_PART_SIZE_MB` |
+| presigned URL 有效期 | 120 分钟 | `UPLOAD_PRESIGN_EXPIRE_MINUTES` |
+| 上传凭证 token 有效期 | 2 小时 | `UPLOAD_TOKEN_EXPIRE_HOURS`（代码常量） |
+| 软件包上限 | 5 GB | `SOFTWARE_MAX_SIZE_GB` |
+
+> 文档（PDF ≤ 50MB）仍走后端流式上传（`/documents/upload`），不使用直传。
+
+#### 4.3.6-3 存储后端抽象（local / OSS）🆕
+
+> `services/storage_service.py` 是统一存储门面，按 `STORAGE_BACKEND` 路由到本地文件系统或 S3/OSS，业务代码无需感知差异。**默认 `local`**。
+
+| 维度 | `STORAGE_BACKEND=local`（开发/低流量） | `STORAGE_BACKEND=s3`（MinIO/阿里云 OSS，生产） |
+|------|------|------|
+| 实现 | `file_storage.py`，文件存于 `DATA_DIR` | `oss_service.py`，boto3 |
+| 下载 URL | 后端签发 HMAC 签名直链 `/api/v1/files/{oss_key}?expires=&token=` | OSS Presigned URL |
+| 预览 URL | 同上（同一签名直链） | OSS Presigned URL（`inline`，浏览器内嵌） |
+| 文件流端点 | `GET /api/v1/files/{oss_key:path}` 校验签名后 `FileResponse` 直出 | 不需要（OSS 直传/直下） |
+| 大文件直传 | 不支持，`upload/init` 回退同步上传 | 支持 multipart 直传 |
+
+> 签名直链有效期 = `PRESIGNED_URL_EXPIRE_MINUTES`（默认 5 分钟）。会员角色与每日限额校验在「获取链接」接口完成；文件流端点仅校验 URL 签名（浏览器直链请求无法携带 Authorization 头）。⚠️ `/files` 端点含 debug 占位文件的向后兼容旁路，生产务必使用 `s3` 后端。
 
 #### 4.3.7 同步任务模块 (`/api/v1/sync`)
 
@@ -806,20 +943,24 @@ software                 # 软件包元数据
 ├── original_name
 ├── brand                # siemens/mitsubishi/omron/keyence/inovance
 ├── category             # plc-ide/hmi-ide/plc-driver/utility/firmware/other
+├── series               # ♻️ 残留列，软件系列已弃用（待清理），to_dict 仍输出
 ├── latest_version       # 最新版本号（如 "V18"），冗余字段便于列表展示
 ├── download_count       # 总下载次数（所有版本合计），冗余字段便于列表展示
 ├── description
 ├── is_active            # 是否上架
+├── is_published         # 🆕 派生镜像（= 任一版本已发布），兼容旧折叠列表
 └── created_at
 
 software_versions        # 软件版本明细 🆕
 ├── software_id          # 关联 software.id（外键）
 ├── version              # 版本号（如 "V18"、"2.1.0"）
+├── original_name        # 🆕 每版本独立显示名（两个版本可显示不同文件名）
 ├── file_size
 ├── file_hash            # SHA256
-├── oss_key              # OSS 对象 key
+├── oss_key              # 对象 key（可读稳定键：原名+时间戳）
 ├── download_count       # 下载次数，默认 0
 ├── upload_time
+├── is_published         # 🆕 版本级发布开关（发布权威字段，Portal 据此过滤）
 └── is_active            # 是否启用（可下架旧版本）
 
 sync_logs                # 同步日志
@@ -860,6 +1001,17 @@ admin_audit_logs         # 管理员操作日志 🆕
 ├── action               # blacklist / unblacklist / force_logout / role_change
 ├── detail               # 操作详情（JSON）
 └── created_at
+
+visit_events             # 访客埋点（数据看板）🆕
+├── id                   # 主键（BIGSERIAL）
+├── ip_address           # 访客 IP（索引；访客数按 DISTINCT ip 统计）
+├── user_agent           # 浏览器 UA
+├── path                 # 访问路径
+├── geo_location         # 地理位置名称（IP 解析）
+├── country_code         # 国家码
+├── is_authenticated     # 是否已登录访客（索引）
+├── user_id              # 已登录则记录 user_id（可空，索引）
+└── created_at           # 访问时间（索引，按日聚合趋势）
 ```
 
 #### 4.6.2 Milvus Collection
@@ -906,13 +1058,26 @@ plc_knowledge            # 向量知识库
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**🆕 新增 Layer-1 环境变量**（`core/config.py`）：
+
+| 变量 | 默认值 | 说明 |
+|------|------|------|
+| `STORAGE_BACKEND` | `local` | 存储后端：`local`（文件系统）/ `s3`（OSS/MinIO）。**生产须设 `s3`** |
+| `DATA_DIR` | `/data/files` | 本地存储根目录（local 模式） |
+| `OSS_DOC_PREFIX` | `documents` | 文档对象前缀（旧数据前缀 `OSS_LEGACY_DOC_PREFIX=doc`） |
+| `OSS_SOFTWARE_PREFIX` | `soft` | 软件对象前缀（原 `software/`，已重命名） |
+| `DOWNLOAD_DAILY_LIMIT` | `5` | 每用户每类型每日下载上限 |
+| `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
+| `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
+| `UPLOAD_PART_SIZE_MB` / `UPLOAD_PRESIGN_EXPIRE_MINUTES` | `64` / `120` | 直传分片大小 / presigned 有效期 |
+
 ### 4.8 外部依赖
 
 | 服务 | 用途 | 必需 |
 |------|------|:---:|
 | PostgreSQL 15 | 业务数据存储 | ✅ |
 | Milvus 2.4 | 向量数据库 | ✅ |
-| MinIO / 阿里云 OSS | PDF 和软件包文件存储 | ✅ |
+| MinIO / 阿里云 OSS | PDF 和软件包文件存储（`STORAGE_BACKEND=s3` 时必需；`local` 模式可不依赖） | ⬜ 可选 |
 | etcd 3.5 | Milvus 元数据 | ✅ |
 | RAG Server | PDF 解析与向量索引 | ✅ |
 | 阿里云短信 / 腾讯云短信 | 短信验证码发送 | ✅ |
@@ -1079,11 +1244,11 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 
 | 需求 | 说明 |
 |------|------|
-| 安全性 | JWT 认证（含 jti 黑名单 + refresh rotation）、短信验证码登录、token 强制失效、敏感凭证环境变量管理、MCP 服务内网隔离、API 限流（slowapi）、每日下载限制（5次/天/类型） |
-| 性能 | 文档/软件列表分页、API 响应 <500ms（P95）、在线统计异步写入 |
-| 可用性 | 后端健康检查端点、数据库连接池、容器自动重启 |
-| 可维护性 | OpenAPI 自动文档、代码类型提示、统一错误响应格式、双应用共享代码 |
-| 可扩展性 | 模块化目录结构、新增模块只需加 router + model |
+| 安全性 | JWT 认证（含 jti 黑名单 + refresh rotation）、短信验证码登录、token 强制失效、敏感凭证环境变量管理、MCP 服务内网隔离、API 限流（slowapi）、每日下载限制（5次/天/类型，admin 豁免）、手机号日志脱敏、文件类型白名单、私有桶 + 短期签名 URL |
+| 性能 | 文档/软件列表分页、API 响应 <500ms（P95）、在线统计/访客埋点异步写入、**大文件浏览器直传 OSS（后端零文件带宽）**、上传流式 + 线程池卸载、分层 Dockerfile 构建缓存 |
+| 可用性 | 后端健康检查端点（127.0.0.1）、数据库连接池、容器自动重启、上传/落库事务一致性（失败回滚清理对象） |
+| 可维护性 | OpenAPI 自动文档、代码类型提示、统一错误响应格式（`utils.ok`）、双应用共享代码、存储后端门面抽象（local/OSS 一键切换） |
+| 可扩展性 | 模块化目录结构、新增模块只需加 router + model、标签体系数据驱动（品牌/分类/系列免改代码） |
 
 ---
 
@@ -1123,3 +1288,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.5.0 | 2025-06-17 | 全面评审修复：Admin 去下载功能（归 Portal）；新增 daily download limit（5次/天/类型）+ download_logs 表；修复 sms_codes 冗余字段设计；Refresh token rotation + jti 黑名单；补充 benefits/footer API；明确 RAG/MCP 数据流；CORS+限流策略；补 OSS_REGION；开发计划调整 |
 | 0.6.0 | 2025-06-17 | 第二轮评审修复：明确 download_count vs download_logs 关系；下载流程图补每日限额步骤；补 429 响应格式；users/documents/software 补 id 主键；software 补 download_count；login_sessions 明确 UPSERT 唯一键；sms_codes 冷却逻辑精确到 MAX(created_at)；新增手机号格式校验；sync_logs document_id 可为 NULL；仓库链接标注硬编码；Admin 下载次数标注只读；部署图注释补 MCP→Milvus 查询说明 |
 | 0.7.0 | 2026-06-22 | 文档体系全面评审：① 新增 `series` 三层模型（品牌→分类→系列），documents 表增加 series/description/is_published 字段；② 新增 `resource_tags` 表统一管理品牌/分类/系列元数据，替代代码硬编码；③ 新增 `/api/v1/tags` CRUD 端点 + Admin 设置页面（品牌/分类/系列管理）；④ 文档支持 PATCH 更新元数据；⑤ OSS 文件命名规范定为 `品牌-分类-内容.pdf`，243 个 PDF 文件已按规范重命名并清理 `doc/` 非 PDF 残留；⑥ 品牌列表从 5 个扩展到 16 个，文档从 0 扩展到 243 个；⑦ 新增 robot-manual（机器人手册）分类；⑧ 新增导入与重命名脚本体系（import_legacy_docs / rename_unclear_docs / batch_rebrand_docs / reformat_three_docs / add_series_tags） |
+| 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`（标注「预览计入下载限额」待确认）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 🚧 标注 Portal 官网内容管理（轮播/优势/页脚 + Admin 内容管理页）实际未落地；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |

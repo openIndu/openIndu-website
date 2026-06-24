@@ -715,6 +715,47 @@ async function handleDownload(docId: number) {
    取消：POST /software/upload/abort { token } → abort_multipart_upload / 删除对象
 ```
 
+**时序契约**：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器 (Admin)
+    participant API as Web API :8004
+    participant OSS as 对象存储
+    participant DB as PostgreSQL
+
+    B->>API: POST /software/upload/init<br/>{filename, size, brand, category, version}
+    API->>API: 校验品牌/分类/扩展名/大小
+    alt size > UPLOAD_PART_SIZE_MB (64 MiB)
+        API->>OSS: create_multipart_upload
+        OSS-->>API: upload_id
+        API->>API: 逐片签发 presigned PUT URL
+        API-->>B: {mode: multipart, token, part_urls[], upload_id}
+    else size ≤ UPLOAD_PART_SIZE_MB
+        API->>API: 签发单个 presigned PUT URL
+        API-->>B: {mode: single, token, upload_url}
+    end
+
+    Note over B,OSS: 浏览器并发上传分片（默认并发 8）
+    B-)OSS: PUT part_1
+    B-)OSS: PUT part_2
+    B-)OSS: PUT part_N
+    OSS-->>B: ETags
+
+    B->>API: POST /software/upload/complete<br/>{token, parts[], file_hash}
+    alt multipart
+        API->>OSS: complete_multipart_upload(parts)
+    else single
+        API->>OSS: head_object 确认存在
+    end
+    API->>DB: INSERT software + software_versions
+    Note right of DB: 失败则 abort + delete<br/>避免幽灵文件
+    API-->>B: 200 OK + 软件元数据
+```
+
+> `STORAGE_BACKEND=local` 时 `init` 直接返回 `{mode: "sync"}`，前端回退到 `POST /software/upload` 经后端流式上传——本地文件系统没有 multipart 直传能力。
+
 | 参数 | 默认值 | 配置项 |
 |------|:---:|------|
 | 分片大小 | 64 MiB | `UPLOAD_PART_SIZE_MB` |

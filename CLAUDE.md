@@ -11,8 +11,12 @@
 > **治理体系**：Agent 角色、开发流程、PR/执行/通信规范统一收敛于
 > [`.claude/governance/`](.claude/governance/README.md)。
 >
-> **管控中心**：本仓受 [workflow-control-tower](https://github.com/agentic-develop-playground/workflow-control-tower)
-> 统一管控，Agent 行为守则权威源为 `workflow-control-tower/team/principle.md`。
+> **管控中心**：本仓受 [openIndu/workflow-control-tower](https://github.com/openIndu/workflow-control-tower)
+> 统一管控，Agent 行为守则权威源为
+> [`workflow-control-tower/team/principle.md`](https://github.com/openIndu/workflow-control-tower/blob/main/team/principle.md)
+> —— RULE 1-6 同步自上游 [agentic-develop-playground/workflow-control-tower](https://github.com/agentic-develop-playground/workflow-control-tower)，
+> RULE 7-11 为 openIndu 社区自有硬约束（push-main 禁令 / K8s 归口 infra-deploy /
+> Gitee PR 英文 / 生产 SQL guard / 修复完整链路）。
 
 ## 0. 工作目录约定
 

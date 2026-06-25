@@ -3,9 +3,7 @@
 > 本文件是 openIndu-website 所有 AI Agent 的 **Rule #1**，
 > 任何 Agent 在执行任务前必须首先加载并遵守本守则。
 >
-> **权威源**：[openIndu/workflow-control-tower · team/principle.md](https://github.com/openIndu/workflow-control-tower/blob/main/team/principle.md)
-> （RULE 1-6 同步自上游 [agentic-develop-playground/workflow-control-tower](https://github.com/agentic-develop-playground/workflow-control-tower)，
-> RULE 7-11 为 openIndu 社区自有硬约束）。
+> **权威源**：[openIndu/workflow-control-tower · team/principle.md](https://github.com/openIndu/workflow-control-tower/blob/main/team/principle.md)（共 11 条 RULE）。
 >
 > 本文件为 openIndu-website **项目层**简化版，覆盖最常用的 5 主原则 + 项目层文件写权限矩阵。
 > 与权威源冲突时以权威源为准；权威源含完整 11 条 RULE 与 5.1-5.4 细则。

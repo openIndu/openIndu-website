@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.9.1 | 日期: 2026-06-26 | 状态: 草案
+> 版本: 0.9.2 | 日期: 2026-06-26 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -227,14 +227,15 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 功能点 | 说明 | 优先级 | 状态 |
 |--------|------|:---:|:---:|
 | 总情况区 | 总会员人数、总文档数、总软件数、总访问人数（累计）、当前总访问人数 | P1 | ✅ |
-| 实时访客 | `current_total_visitors` = 最近 5 分钟 `visit_events` 中去重公网 IP 访客数，区别于登录在线用户 | P1 | ✅ |
+| 实时访客 | `current_5m_uv` = 最近 5 分钟 UV（`visitor_id` 优先，历史数据按 IP fallback）；`current_5m_pv` = 最近 5 分钟页面访问次数 | P1 | ✅ |
+| PV / UV | Dashboard 展示当前/今日/本月/累计 PV 与 UV；PV 为页面访问次数，UV 为独立访客数（新数据按浏览器 `visitor_id`，历史数据按 IP） | P1 | ✅ |
 | 今日/本月 | 今日·本月活跃用户、新增用户/文档/软件 | P1 | ✅ |
 | 趋势图 | 近 30 天每日注册/访客/登录、本月登录趋势、年度全量访问趋势、匿名访问趋势（零填充） | P1 | ✅ |
 | 地理分布地图 | 访客 + 在线会话按地理位置聚合（含经纬度），地图点大小按流量分级 | P1 | ✅ |
 | 标签使用统计 | 品牌/分类/系列标签使用量，支持展示未使用标签 | P2 | ✅ |
 | 访问日志 | 展示匿名 + 已登录访问记录，支持关键词、登录/匿名、本地/未知过滤；时间统一按北京时间渲染 | P1 | ✅ |
 
-**访客埋点机制**：Portal 前端在每次 SPA 路由导航时调用 `POST /api/v1/visits/track`（匿名亦记录），后端解析真实客户端 IP 与地理位置写入 `visit_events` 表，区分已认证/匿名访客。看板的累计访客数按 `DISTINCT ip_address` 统计；实时当前访客数按最近 5 分钟 `DISTINCT ip_address` 统计。
+**访客埋点机制**：Portal 前端在每次 SPA 路由导航时调用 `POST /api/v1/visits/track`（匿名亦记录），请求体携带浏览器级 `visitor_id` 与 `event_type=page_view`；后端解析真实客户端 IP 与地理位置写入 `visit_events` 表，区分已认证/匿名访客。看板 PV 按 `visit_events` 行数统计；UV 优先按 `visitor_id` 去重，历史无 `visitor_id` 的数据 fallback 到 `ip_address`。Portal 对同一路径 1 秒内重复埋点做轻量去重，避免 React StrictMode / effect 双执行虚增 PV。
 
 > 访问日志接口默认隐藏 `geo_location=本地开发`（内网/回环/Docker 网关）与 `geo_location=未知` 的记录，避免本地调试和无法解析 IP 干扰运营看板；需要排查时可通过参数显式包含。所有日志中的手机号均由后端脱敏后返回，前端不接收完整手机号。
 
@@ -510,7 +511,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/visits/track` | POST | 记录一次页面访问（匿名/已认证均记录，解析 IP 地理位置写入 `visit_events`） | 公开 |
+| `/visits/track` | POST | 记录一次页面访问（匿名/已认证均记录，携带 `visitor_id` + `event_type=page_view`，解析 IP 地理位置写入 `visit_events`） | 公开 |
 
 #### 4.3.4-2 管理员审计模块 (`/api/v1/admin`) 🆕
 
@@ -977,14 +978,16 @@ token_blacklist          # Token 黑名单（强制登出/拉黑）
 
 login_sessions           # 登录会话（在线统计）🆕
 ├── user_id              # 用户 ID（索引）
+├── client_id            # 浏览器/客户端 ID（X-OpenIndu-Client-Id，可空，索引）🆕
 ├── ip_address           # 登录 IP
 ├── user_agent           # 浏览器 UA
 ├── geo_location         # 地理位置（通过 IP 解析）🆕
 ├── last_active_at       # 最后活跃时间（每次 API 请求更新）
 └── is_active            # 是否在线（5分钟内无活动则为 false）
 
-# UPSERT 唯一键：(user_id, ip_address, user_agent) 组合。
-# 同一用户用同一设备+IP 多次请求时更新 last_active_at，切换设备/IP 时新增记录。
+# 兼容唯一键：(user_id, ip_address, user_agent) 组合。
+# 新前端请求携带 client_id；同一 client_id 切换账号时，旧账号会话自动置为离线，
+# 但不同 client_id 即使同 IP 仍允许多个账号同时在线（避免误伤公司/家庭/NAT 场景）。
 
 documents                # 文档元数据
 ├── id                   # 主键（BIGSERIAL）
@@ -1081,7 +1084,9 @@ admin_audit_logs         # 管理员操作日志 🆕
 
 visit_events             # 访客埋点（数据看板）🆕
 ├── id                   # 主键（BIGSERIAL）
-├── ip_address           # 访客 IP（索引；访客数按 DISTINCT ip 统计）
+├── ip_address           # 访客 IP（索引；历史 UV fallback）
+├── visitor_id           # 浏览器级匿名访客 ID（优先用于 UV 去重，可空，索引）🆕
+├── event_type           # 事件类型，当前固定 page_view（索引）🆕
 ├── user_agent           # 浏览器 UA
 ├── path                 # 访问路径
 ├── geo_location         # 地理位置名称（IP 解析）
@@ -1188,8 +1193,9 @@ Token 黑名单校验逻辑:
 
 在线统计记录逻辑:
   1. 从 JWT 中提取 user_id
-  2. UPSERT login_sessions: SET last_active_at = NOW(), is_active = true
-  3. 若新会话 → 记录 ip_address, user_agent, geo_location
+  2. 读取 X-OpenIndu-Client-Id（可空）；同 client_id 切换账号时将旧账号 session 标记为离线
+  3. UPSERT login_sessions: SET last_active_at = NOW(), is_active = true, client_id = ?
+  4. 若新会话 → 记录 ip_address, user_agent, geo_location
 ```
 
 ---
@@ -1376,3 +1382,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`，**预览采用独立限额**（默认 20次/天，不占下载额度、不计 download_count，`PREVIEW_DAILY_LIMIT`）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 📌 Portal 官网内容**定为前端静态硬编码**（取消动态 CMS：hero 编辑 / carousel / benefits / footer + Admin 内容管理页均不实现）；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |
 | 0.9.0 | 2026-06-26 | **最新代码刷新**（基于 aggregate `d9a5dfd`，backend `ae63027` / admin `e9b4c31` / portal `3b7414b`）：① 认证体验加固：Portal/Admin 普通 API `401` 自动 refresh + 重放请求，refresh rotation 单飞/跨 tab 协调，修复 React StrictMode 与多标签竞态误登出；Portal 登录/注册合并为统一认证入口；② 数据看板升级：`current_total_visitors` 最近 5 分钟去重 IP 实时访客、总会员/总访问人数卡、月度登录/年度访问/匿名访问趋势、地图按流量分级、标签使用统计；③ 新增 `/stats/visit-logs` 访问日志（匿名+已登录、手机号脱敏、默认隐藏本地开发/未知、UTC 返回前端北京时间渲染）；④ IP 地理解析切换为 ip2region 离线 xdb，统一 `real_client_ip()` 信任代理头；⑤ 用户管理新增登录地展示与软删除（`DELETE /users/{id}`，保留审计/历史记录并吊销 token/会话）；⑥ RAG 同步新增 `RAG_SYNC_ENABLED` 环境门控，生产可关闭内置定时同步并用受控离线脚本；⑦ Portal SEO 套件：per-route meta、canonical(`www.openindu.com`)、JSON-LD、robots/sitemap、Google/Baidu 验证、Baidu 自动推送；Admin 明确 noindex/robots 禁止收录；⑧ 审计/登录/访问日志手机号均由后端脱敏。 |
 | 0.9.1 | 2026-06-26 | **软件系列历史债务清理**（backend `1f4ffd2` / admin `6ad5ad6` / portal `9d81d91`）：① 删除后端运行时模型/API 中的 `software.series` 暴露，软件列表（含 `expand_versions`）不再返回 `series`；② 新增迁移 `20260626_remove_software_series` 删除 `software.series` 列与 `ix_software_series` 索引，并清理历史 `resource_tags.type='sw_series'`；③ Admin 软件 API 类型不再接受 `series`，设置页仅保留文档系列；④ Portal 软件资源请求不再携带文档 `series` 参数，文档系列筛选保持不变。 |
+| 0.9.2 | 2026-06-26 | **PV/UV 与同客户端多账号会话修正**（backend `0b29015` / admin `ad3939d` / portal `228670e`）：① `visit_events` 新增 `visitor_id` 与 `event_type=page_view`，Portal 埋点携带浏览器级 `visitor_id` 并对同路径 1 秒内重复埋点去重；② Dashboard 新增当前/今日/本月/累计 PV 与 UV 字段，PV=页面访问次数，UV=visitor_id 优先、历史数据按 IP fallback；③ `login_sessions` 新增 `client_id`，Portal/Admin API 请求统一携带 `X-OpenIndu-Client-Id`；④ 同一 client_id 切换账号时旧账号会话自动离线，但不同设备/浏览器即使同 IP 仍允许多个账号在线；⑤ logout 优先按 client_id 下线当前浏览器会话。 |

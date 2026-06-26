@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.9.0 | 日期: 2026-06-26 | 状态: 草案
+> 版本: 0.9.1 | 日期: 2026-06-26 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -306,7 +306,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 
 #### 3.3.6 品牌与分类管理（设置中心）
 
-> 品牌、文档分类、软件分类、产品系列均从数据库动态读取，通过设置页面维护，无需改代码。
+> 品牌、文档分类、软件分类、**文档**产品系列均从数据库动态读取，通过设置页面维护，无需改代码。
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
@@ -316,7 +316,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 系列管理 | 增删改**文档**产品系列（`doc_series`），关联所属品牌和分类 | P0 |
 | 排序 | 每类标签可配置 sort_order 控制下拉顺序 | P1 |
 
-> ♻️ **变更**：**软件系列（`sw_series`）已移除**——标签管理 UI 与上传表单不再提供软件系列。`software.series` 数据列暂时保留（历史数据，`to_dict` 仍输出），属待清理技术债（见演进方向）。
+> ♻️ **变更**：**软件系列（`sw_series`）已移除并清理历史债务**——标签管理 UI 与上传表单不再提供软件系列；后端不再接受/返回 `software.series`，数据库迁移 `20260626_remove_software_series` 删除 `software.series` 残留列并清理历史 `sw_series` 标签。软件仅按品牌、分类与版本管理。
 
 #### 3.3.7 系统配置
 
@@ -557,7 +557,6 @@ openIndu-backend/
 | `doc_series` | 文档产品系列，关联 brand_value 和 parent_value（分类） |
 | `sw_brand` | 软件品牌 |
 | `sw_category` | 软件分类 |
-| `sw_series` | 软件产品系列 |
 
 **文件上传限制**：
 
@@ -1006,11 +1005,11 @@ documents                # 文档元数据
 
 resource_tags            # 标签元数据（品牌/分类/系列统一管理）
 ├── id                   # 主键（BIGSERIAL）
-├── type                 # 标签类型: doc_brand / doc_category / doc_series / sw_brand / sw_category / sw_series
+├── type                 # 标签类型: doc_brand / doc_category / doc_series / sw_brand / sw_category
 ├── value                # 唯一标识 slug（如 siemens / plc-manual / s7-1200）
 ├── label_zh             # 中文显示名
-├── parent_value         # 父级标签 value（doc_series 关联所属 doc_category；sw_series 关联所属 sw_category）
-├── brand_value          # 品牌关联（doc_series / sw_series 关联所属 brand）
+├── parent_value         # 父级标签 value（doc_series 关联所属 doc_category）
+├── brand_value          # 品牌关联（doc_series 关联所属 brand）
 ├── is_active            # 是否启用
 ├── sort_order           # 排序
 ├── created_at
@@ -1022,7 +1021,6 @@ software                 # 软件包元数据
 ├── original_name
 ├── brand                # siemens/mitsubishi/omron/keyence/inovance
 ├── category             # plc-ide/hmi-ide/plc-driver/utility/firmware/other
-├── series               # ♻️ 残留列，软件系列已弃用（待清理），to_dict 仍输出
 ├── latest_version       # 最新版本号（如 "V18"），冗余字段便于列表展示
 ├── download_count       # 总下载次数（所有版本合计），冗余字段便于列表展示
 ├── description
@@ -1377,3 +1375,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.7.0 | 2026-06-22 | 文档体系全面评审：① 新增 `series` 三层模型（品牌→分类→系列），documents 表增加 series/description/is_published 字段；② 新增 `resource_tags` 表统一管理品牌/分类/系列元数据，替代代码硬编码；③ 新增 `/api/v1/tags` CRUD 端点 + Admin 设置页面（品牌/分类/系列管理）；④ 文档支持 PATCH 更新元数据；⑤ OSS 文件命名规范定为 `品牌-分类-内容.pdf`，243 个 PDF 文件已按规范重命名并清理 `doc/` 非 PDF 残留；⑥ 品牌列表从 5 个扩展到 16 个，文档从 0 扩展到 243 个；⑦ 新增 robot-manual（机器人手册）分类；⑧ 新增导入与重命名脚本体系（import_legacy_docs / rename_unclear_docs / batch_rebrand_docs / reformat_three_docs / add_series_tags） |
 | 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`，**预览采用独立限额**（默认 20次/天，不占下载额度、不计 download_count，`PREVIEW_DAILY_LIMIT`）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 📌 Portal 官网内容**定为前端静态硬编码**（取消动态 CMS：hero 编辑 / carousel / benefits / footer + Admin 内容管理页均不实现）；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |
 | 0.9.0 | 2026-06-26 | **最新代码刷新**（基于 aggregate `d9a5dfd`，backend `ae63027` / admin `e9b4c31` / portal `3b7414b`）：① 认证体验加固：Portal/Admin 普通 API `401` 自动 refresh + 重放请求，refresh rotation 单飞/跨 tab 协调，修复 React StrictMode 与多标签竞态误登出；Portal 登录/注册合并为统一认证入口；② 数据看板升级：`current_total_visitors` 最近 5 分钟去重 IP 实时访客、总会员/总访问人数卡、月度登录/年度访问/匿名访问趋势、地图按流量分级、标签使用统计；③ 新增 `/stats/visit-logs` 访问日志（匿名+已登录、手机号脱敏、默认隐藏本地开发/未知、UTC 返回前端北京时间渲染）；④ IP 地理解析切换为 ip2region 离线 xdb，统一 `real_client_ip()` 信任代理头；⑤ 用户管理新增登录地展示与软删除（`DELETE /users/{id}`，保留审计/历史记录并吊销 token/会话）；⑥ RAG 同步新增 `RAG_SYNC_ENABLED` 环境门控，生产可关闭内置定时同步并用受控离线脚本；⑦ Portal SEO 套件：per-route meta、canonical(`www.openindu.com`)、JSON-LD、robots/sitemap、Google/Baidu 验证、Baidu 自动推送；Admin 明确 noindex/robots 禁止收录；⑧ 审计/登录/访问日志手机号均由后端脱敏。 |
+| 0.9.1 | 2026-06-26 | **软件系列历史债务清理**（backend `1f4ffd2` / admin `6ad5ad6` / portal `9d81d91`）：① 删除后端运行时模型/API 中的 `software.series` 暴露，软件列表（含 `expand_versions`）不再返回 `series`；② 新增迁移 `20260626_remove_software_series` 删除 `software.series` 列与 `ix_software_series` 索引，并清理历史 `resource_tags.type='sw_series'`；③ Admin 软件 API 类型不再接受 `series`，设置页仅保留文档系列；④ Portal 软件资源请求不再携带文档 `series` 参数，文档系列筛选保持不变。 |

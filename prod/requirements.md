@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.8.0 | 日期: 2026-06-24 | 状态: 草案
+> 版本: 0.9.0 | 日期: 2026-06-26 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -58,9 +58,9 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
 | 手机号登录 | 输入手机号 → 发送短信验证码 → 输入验证码 → 登录 | P0 |
-| 手机号注册 | 输入手机号 → 发送短信验证码 → 输入验证码 → 注册（首个用户自动 admin） | P0 |
+| 手机号注册 | 与登录页合并为统一认证入口；手机号不存在时自动注册（首个用户自动 admin） | P0 |
 | 验证码重发 | 60 秒冷却后重新发送 | P0 |
-| 登录态保持 | JWT access token（15min）+ refresh token（7d） | P0 |
+| 登录态保持 | JWT access token（15min）+ refresh token（7d），前端 401 自动刷新并重放原请求 | P0 |
 | 登录后跳转 | 登录成功后跳转到来源页，默认进入资源中心 | P1 |
 | 个人中心 | 登录后显示个人中心入口（账号设置页 `AccountSettings.tsx`），可设置昵称；手机号仅脱敏展示 | P1 |
 | 修改手机号 | 个人中心可换绑手机号（新号需短信验证码，`POST /auth/change-phone`） | P1 |
@@ -68,7 +68,11 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 法律页面 | 隐私声明、法律声明、Cookies 等静态法律页（`LegalPages.tsx`） | P1 |
 | 隐私声明确认 | 登录/注册前必须勾选同意隐私声明 | P1 |
 
-> 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用。手机号属于敏感信息，Portal 页面以及 Admin 的登录日志/审计日志均仅允许脱敏展示。用户登录/注册前需阅读并勾选同意隐私声明。
+> 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。Portal 已将登录与注册合并为统一认证入口：用户输入手机号和验证码后，后端按手机号识别为登录或注册。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用；前端在收到普通 API `401` 时先尝试 `/auth/refresh`，成功后重放原请求。
+>
+> **refresh rotation 并发约束**：后端每次 `/auth/refresh` 都会将旧 refresh token 的 `jti` 加入黑名单并签发新 token。Portal/Admin 前端必须做单飞刷新（同 tab 内请求排队、跨 tab 使用 `navigator.locks` 协调，另监听 `storage` 事件同步 token 变化），避免 React StrictMode 双执行或多标签页同时刷新导致第二次刷新命中已拉黑 jti 而被误登出。
+>
+> 手机号属于敏感信息，Portal 页面以及 Admin 的登录日志/审计日志/访问日志均仅允许脱敏展示。用户登录/注册前需阅读并勾选同意隐私声明。
 
 #### 2.2.3 下载中心（面向成员）
 
@@ -108,6 +112,19 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 视觉 | AI+视觉解决方案介绍 | P1 |
 | IIoT 平台 | openIndu-platform 产品介绍 | P1 |
 | 基础设施 | Token 服务等基础设施介绍 | P1 |
+
+#### 2.2.6 SEO 与搜索引擎收录
+
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 基础 meta | 首页与产品子页面按路由设置 title/description/keywords/og:image | P1 | ✅ |
+| canonical | 统一规范域名为 `https://www.openindu.com`，每路由输出 canonical | P1 | ✅ |
+| 结构化数据 | 输出 Organization / WebSite / SoftwareApplication 等 JSON-LD | P1 | ✅ |
+| robots/sitemap | `public/robots.txt` 与 `public/sitemap.xml`，声明 sitemap 地址 | P1 | ✅ |
+| 搜索站长验证 | Google Search Console + Baidu 站长平台 meta 验证 | P1 | ✅ |
+| Baidu 主动推送 | 页面加载时接入百度自动推送脚本 | P2 | ✅ |
+
+> Portal 是公开站点，允许搜索引擎抓取；Admin 是内部后台，禁止抓取（见 §3.3.8）。SEO 配置以静态前端文件和路由组件为主，部署域名规范为 `www.openindu.com`。
 
 ### 2.3 技术栈
 
@@ -161,11 +178,12 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
-| 用户列表 | 分页展示所有注册用户（手机号、角色、注册时间、最后登录、在线状态、登录 IP） | P0 |
+| 用户列表 | 分页展示所有未软删除用户（手机号、角色、注册时间、最后登录、在线状态、登录 IP、登录地） | P0 |
 | 角色分配 | 管理员修改用户角色（user/member/admin） | P0 |
 | 拉黑用户 | 将用户设为黑名单状态，禁止登录 | P0 |
 | 强制登出 | 使指定用户的所有 Token 立即失效，强制下线 | P0 |
 | 解除拉黑 | 将黑名单用户恢复正常状态 | P1 |
+| 软删除用户 | 管理员删除用户时仅设置 `deleted_at` 并吊销 token/会话；审计与历史访问/下载记录保留 | P1 ✅ |
 | 在线统计 | 展示当前在线人数、登录地理位置分布（`OnlineStats.tsx`） | P1 |
 | 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏） | P2 ✅ |
 
@@ -190,15 +208,17 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 ```
 每次 API 请求 → 中间件记录到 login_sessions 表
   ├── user_id
-  ├── ip_address          ← 从 X-Forwarded-For 或 request.client 获取
+  ├── ip_address          ← 统一 real_client_ip()：优先 X-Forwarded-For / X-Real-IP，再 fallback request.client
   ├── user_agent
-  ├── geo_location        ← 通过 IP 地理位置库解析（如 GeoLite2）
-  ├── last_active_at      ← 每次请求更新
+  ├── geo_location        ← 通过 ip2region 离线 xdb 解析；内网/回环 = 本地开发，失败 = 未知
+  ├── last_active_at      ← 每次请求更新（按 UTC 存储，API 返回 ISO UTC）
   └── is_active           ← 5 分钟内无请求则标记为离线
 
 定时任务（每分钟）→ 清理超过 5 分钟无活动的会话
 在线人数 = SELECT COUNT(DISTINCT user_id) FROM login_sessions WHERE is_active = true
 ```
+
+> 地理位置解析使用 `data/ip2region_v4.xdb`（`IP2REGION_XDB_PATH` 可覆盖），进程内懒加载为内存 searcher；缺少 xdb 或依赖时降级为「未知」，不阻塞应用启动。用户列表中的登录 IP/登录地优先选最近的公网会话，避免本地开发的 Docker 网关地址污染生产审计视图。
 
 #### 3.3.2-1 数据看板（Dashboard）🆕
 
@@ -206,13 +226,17 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 | 功能点 | 说明 | 优先级 | 状态 |
 |--------|------|:---:|:---:|
-| 总览卡片 | 总用户/文档/软件数、近 30 天新增用户、近 30 天访客数 | P1 | ✅ |
-| 在线实时 | 在线登录用户数、在线访客数、匿名在线数 | P1 | ✅ |
+| 总情况区 | 总会员人数、总文档数、总软件数、总访问人数（累计）、当前总访问人数 | P1 | ✅ |
+| 实时访客 | `current_total_visitors` = 最近 5 分钟 `visit_events` 中去重公网 IP 访客数，区别于登录在线用户 | P1 | ✅ |
 | 今日/本月 | 今日·本月活跃用户、新增用户/文档/软件 | P1 | ✅ |
-| 趋势图 | 近 30 天每日注册/访客/登录；本月逐日注册/访客（零填充） | P1 | ✅ |
-| 地理分布地图 | 访客 + 在线会话按地理位置聚合（含经纬度），地图标注 `名称:数量` | P1 | ✅ |
+| 趋势图 | 近 30 天每日注册/访客/登录、本月登录趋势、年度全量访问趋势、匿名访问趋势（零填充） | P1 | ✅ |
+| 地理分布地图 | 访客 + 在线会话按地理位置聚合（含经纬度），地图点大小按流量分级 | P1 | ✅ |
+| 标签使用统计 | 品牌/分类/系列标签使用量，支持展示未使用标签 | P2 | ✅ |
+| 访问日志 | 展示匿名 + 已登录访问记录，支持关键词、登录/匿名、本地/未知过滤；时间统一按北京时间渲染 | P1 | ✅ |
 
-**访客埋点机制**：Portal 前端在页面访问时调用 `POST /api/v1/visits/track`（匿名亦记录），后端解析 IP 地理位置写入 `visit_events` 表，区分已认证/匿名访客。看板的访客数按 `DISTINCT ip_address` 统计。
+**访客埋点机制**：Portal 前端在每次 SPA 路由导航时调用 `POST /api/v1/visits/track`（匿名亦记录），后端解析真实客户端 IP 与地理位置写入 `visit_events` 表，区分已认证/匿名访客。看板的累计访客数按 `DISTINCT ip_address` 统计；实时当前访客数按最近 5 分钟 `DISTINCT ip_address` 统计。
+
+> 访问日志接口默认隐藏 `geo_location=本地开发`（内网/回环/Docker 网关）与 `geo_location=未知` 的记录，避免本地调试和无法解析 IP 干扰运营看板；需要排查时可通过参数显式包含。所有日志中的手机号均由后端脱敏后返回，前端不接收完整手机号。
 
 #### 3.3.3 文档管理
 
@@ -312,6 +336,15 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 分块参数 | chunk_size、chunk_overlap | P1 |
 | 同步间隔 | 定时同步间隔（分钟） | P1 |
 
+#### 3.3.8 后台搜索引擎策略
+
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 禁止索引 | `index.html` 输出 `<meta name="robots" content="noindex, nofollow" />` | P1 | ✅ |
+| robots.txt | `public/robots.txt` 禁止搜索引擎抓取后台路径 | P1 | ✅ |
+
+> Admin 是内部运营后台，所有页面必须要求认证且不应被搜索引擎收录；SEO 工作仅面向 Portal 公网站点。
+
 ### 3.4 Admin 实际页面清单（as-built）
 
 > 以下为当前 `openIndu-admin/src/app/pages/` 实际存在的页面，供对照需求落地范围：
@@ -321,6 +354,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 数据看板 | `Dashboard.tsx` | §3.3.2-1 |
 | 用户列表 / 详情 | `users/UserList.tsx`、`users/UserDetail.tsx` | §3.3.2 |
 | 在线统计 | `stats/OnlineStats.tsx` | §3.3.2 |
+| 统计访问日志 | `stats/OnlineStats.tsx`（访问日志 tab） | §3.3.2-1 |
 | 审计日志 | `stats/AuditLogs.tsx` | §3.3.2 |
 | 文档列表 / 上传 | `documents/DocumentList.tsx`、`documents/DocumentUpload.tsx` | §3.3.3 |
 | 软件列表 / 上传 | `software/SoftwareList.tsx`、`software/SoftwareUpload.tsx` | §3.3.4 |
@@ -398,7 +432,7 @@ openIndu-backend/
 
 #### 4.3.1 认证模块 (`/api/v1/auth`)
 
-> 采用**手机号 + 短信动态验证码**认证，无密码体系。
+> 采用**手机号 + 短信动态验证码**认证，无密码体系。Portal/Admin 前端在普通 API 返回 401 时先尝试 refresh token 自动续期，refresh 成功后重放原请求；refresh token 本身 401 或缺失时才清理本地登录态并跳转登录页。
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
@@ -461,14 +495,16 @@ openIndu-backend/
 | `/users/{id}/blacklist` | POST | 拉黑用户并强制登出（加入黑名单 + token 失效） | admin |
 | `/users/{id}/unblacklist` | POST | 解除拉黑 | admin |
 | `/users/{id}/force-logout` | POST | 强制登出（仅使 token 失效，不拉黑） | admin |
+| `/users/{id}` | DELETE | 软删除用户：设置 `deleted_at`、禁用账号、吊销 token/会话；保留审计和历史记录 | admin |
 
 #### 4.3.4 统计与数据看板模块 (`/api/v1/stats`)
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/stats/dashboard` | GET | 运营数据看板：总览/在线/今日·本月/趋势/地理分布（详见 §3.3.2-1）🆕 | admin |
-| `/stats/online` | GET | 当前在线人数 + 地理位置分布 | admin |
-| `/stats/login-history` | GET | 登录历史记录（分页，支持 `keyword` 手机号 + `status` online/offline 筛选） | admin |
+| `/stats/dashboard` | GET | 运营数据看板：总情况/实时访客/趋势/地图/标签使用统计（详见 §3.3.2-1）🆕 | admin |
+| `/stats/online` | GET | 当前在线登录用户数 + 地理位置分布 | admin |
+| `/stats/login-history` | GET | 登录历史记录（分页，支持 `keyword` 手机号 + `status` online/offline 筛选；手机号脱敏，时间返回 UTC ISO） | admin |
+| `/stats/visit-logs` | GET | 访问日志（匿名 + 已登录）：支持 `keyword` 手机号/IP、`authed=yes/no`、`include_local`、`include_unknown`；手机号脱敏，时间返回 UTC ISO | admin |
 
 #### 4.3.4-1 访客埋点模块 (`/api/v1/visits`) 🆕
 
@@ -859,7 +895,7 @@ sequenceDiagram
 
 | 任务 | 说明 | 间隔 |
 |------|------|------|
-| OSS → RAG 同步 | 扫描 OSS 变更文件，解析 PDF 并更新向量库 | 可配置（默认 60 分钟） |
+| OSS → RAG 同步 | 扫描 OSS 变更文件，解析 PDF 并更新向量库；受 `RAG_SYNC_ENABLED` 控制，生产可关闭内置定时同步，改由手动端点或离线脚本触发 | 可配置（默认 60 分钟） |
 | 过期 token 清理 | 清理 `token_blacklist` 中已过期的记录 | 每小时 |
 | 离线会话清理 | 清理超过 5 分钟无活动的 `login_sessions` | 每分钟 |
 
@@ -895,7 +931,8 @@ sequenceDiagram
 | Alembic | 1.x | 数据库迁移 |
 | asyncpg | 0.x | PostgreSQL 异步驱动 |
 | httpx | 0.x | HTTP 客户端（调用短信服务） |
-| geoip2 | latest | IP 地理位置解析 |
+| geoip2 | latest | IP 地理位置解析（历史方案，已由 ip2region 离线 xdb 替代） |
+| py-ip2region | latest | IP 地理位置解析（当前方案，读取 `data/ip2region_v4.xdb`） |
 
 ### 4.6 数据库设计
 
@@ -911,6 +948,8 @@ users                    # 用户表
 ├── is_blacklisted       # 是否在黑名单中 🆕
 ├── blacklisted_at       # 拉黑时间 🆕
 ├── blacklisted_by       # 拉黑操作人（admin ID）🆕
+├── deleted_at            # 软删除时间；非 NULL 时隐藏于 Admin 用户列表且禁止登录 🆕
+├── tokens_invalidated_at # 该时间之前签发的 token 全部视为失效（强制登出/软删除）🆕
 ├── created_at
 └── last_login
 
@@ -1054,6 +1093,8 @@ visit_events             # 访客埋点（数据看板）🆕
 └── created_at           # 访问时间（索引，按日聚合趋势）
 ```
 
+> 时间字段约定：`login_sessions.last_active_at` 与 `visit_events.created_at` 按 UTC 存储，统计/日志接口返回带 `+00:00` 的 ISO 时间；Admin 前端统一按 `Asia/Shanghai` 渲染，避免 UTC 裸时间被浏览器误按本地时区二次偏移。
+
 #### 4.6.2 Milvus Collection
 
 ```
@@ -1108,6 +1149,8 @@ plc_knowledge            # 向量知识库
 | `OSS_SOFTWARE_PREFIX` | `soft` | 软件对象前缀（原 `software/`，已重命名） |
 | `DOWNLOAD_DAILY_LIMIT` | `5` | 每用户每类型每日下载上限 |
 | `PREVIEW_DAILY_LIMIT` | `20` | 每用户每日文档预览上限（独立于下载）🆕 |
+| `RAG_SYNC_ENABLED` | `true` | 是否注册 OSS → Milvus 内置定时同步任务；生产可设 `false`，手动同步端点也会返回 503，改用离线脚本/受控环境同步 🆕 |
+| `IP2REGION_XDB_PATH` | `data/ip2region_v4.xdb` | IP 地理位置离线库路径；缺失时公网 IP 降级为「未知」 🆕 |
 | `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
 | `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
 | `UPLOAD_PART_SIZE_MB` / `UPLOAD_PRESIGN_EXPIRE_MINUTES` | `64` / `120` | 直传分片大小 / presigned 有效期 |
@@ -1122,7 +1165,8 @@ plc_knowledge            # 向量知识库
 | etcd 3.5 | Milvus 元数据 | ✅ |
 | RAG Server | PDF 解析与向量索引 | ✅ |
 | 阿里云短信 / 腾讯云短信 | 短信验证码发送 | ✅ |
-| GeoLite2 | IP 地理位置数据库 | ✅（在线统计） |
+| ip2region xdb | IP 地理位置解析（离线库 `data/ip2region_v4.xdb`，可通过 `IP2REGION_XDB_PATH` 覆盖；缺失时降级为未知） | ✅ |
+| GeoLite2 | IP 地理位置数据库（历史方案，当前不再作为主路径） | ⬜ 可选 |
 
 ### 4.9 中间件
 
@@ -1130,9 +1174,11 @@ plc_knowledge            # 向量知识库
 Web REST API 中间件链:
   请求 → CORS（allow_origins: openindu.com, admin.openindu.com, localhost:3000）
        → 限流中间件（slowapi，按端点+IP+用户）
-       → Token 黑名单校验
+       → 真实客户端 IP 解析（X-Forwarded-For / X-Real-IP / request.client）
+       → Token 黑名单 / tokens_invalidated_at 校验
        → JWT 认证
        → 在线统计记录
+       → 访客埋点（Portal 显式调用 /visits/track）
        → 角色鉴权
        → 业务逻辑
 
@@ -1330,3 +1376,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.6.0 | 2025-06-17 | 第二轮评审修复：明确 download_count vs download_logs 关系；下载流程图补每日限额步骤；补 429 响应格式；users/documents/software 补 id 主键；software 补 download_count；login_sessions 明确 UPSERT 唯一键；sms_codes 冷却逻辑精确到 MAX(created_at)；新增手机号格式校验；sync_logs document_id 可为 NULL；仓库链接标注硬编码；Admin 下载次数标注只读；部署图注释补 MCP→Milvus 查询说明 |
 | 0.7.0 | 2026-06-22 | 文档体系全面评审：① 新增 `series` 三层模型（品牌→分类→系列），documents 表增加 series/description/is_published 字段；② 新增 `resource_tags` 表统一管理品牌/分类/系列元数据，替代代码硬编码；③ 新增 `/api/v1/tags` CRUD 端点 + Admin 设置页面（品牌/分类/系列管理）；④ 文档支持 PATCH 更新元数据；⑤ OSS 文件命名规范定为 `品牌-分类-内容.pdf`，243 个 PDF 文件已按规范重命名并清理 `doc/` 非 PDF 残留；⑥ 品牌列表从 5 个扩展到 16 个，文档从 0 扩展到 243 个；⑦ 新增 robot-manual（机器人手册）分类；⑧ 新增导入与重命名脚本体系（import_legacy_docs / rename_unclear_docs / batch_rebrand_docs / reformat_three_docs / add_series_tags） |
 | 0.8.0 | 2026-06-24 | **实现对齐刷新**（基于 backend `6c9a568` / admin `c516bab` / portal `e02b4aa`），全文引入 ✅/🚧/📋 状态标注：① 🆕 **浏览器直传 OSS** 大文件上传（`/software/upload/init·complete·abort` 三段式 multipart，§4.3.6-2）；② 🆕 **存储后端抽象** local/OSS 门面（`storage_service`，本地 HMAC 签名直链 `/files/{key}`，§4.3.6-3）；③ 🆕 **数据看板** `/stats/dashboard` + **访客埋点** `visit_events`/`/visits/track`（§3.3.2-1）；④ 🆕 **发布工作流**：文档 `is_published` + 软件**版本级**发布（`software_versions.is_published`）+ 批量发布端点；⑤ 🆕 **文档在线预览** `/documents/{id}/preview-link`，**预览采用独立限额**（默认 20次/天，不占下载额度、不计 download_count，`PREVIEW_DAILY_LIMIT`）；⑥ 🆕 账号注销/改手机号（`DELETE /auth/me`、`/auth/change-phone`）；⑦ 🆕 admin 豁免每日下载限额、审计日志页（`/admin/audit-logs`）；⑧ ♻️ 软件系列（sw_series）移除（`software.series` 残列待清理）；⑨ ♻️ OSS 前缀 `software/`→`soft/`、`doc`→`documents`、key 去时间戳改可读稳定键；⑩ 📌 Portal 官网内容**定为前端静态硬编码**（取消动态 CMS：hero 编辑 / carousel / benefits / footer + Admin 内容管理页均不实现）；⑪ 补全 Admin/Portal 实际页面清单与新增配置项 |
+| 0.9.0 | 2026-06-26 | **最新代码刷新**（基于 aggregate `d9a5dfd`，backend `ae63027` / admin `e9b4c31` / portal `3b7414b`）：① 认证体验加固：Portal/Admin 普通 API `401` 自动 refresh + 重放请求，refresh rotation 单飞/跨 tab 协调，修复 React StrictMode 与多标签竞态误登出；Portal 登录/注册合并为统一认证入口；② 数据看板升级：`current_total_visitors` 最近 5 分钟去重 IP 实时访客、总会员/总访问人数卡、月度登录/年度访问/匿名访问趋势、地图按流量分级、标签使用统计；③ 新增 `/stats/visit-logs` 访问日志（匿名+已登录、手机号脱敏、默认隐藏本地开发/未知、UTC 返回前端北京时间渲染）；④ IP 地理解析切换为 ip2region 离线 xdb，统一 `real_client_ip()` 信任代理头；⑤ 用户管理新增登录地展示与软删除（`DELETE /users/{id}`，保留审计/历史记录并吊销 token/会话）；⑥ RAG 同步新增 `RAG_SYNC_ENABLED` 环境门控，生产可关闭内置定时同步并用受控离线脚本；⑦ Portal SEO 套件：per-route meta、canonical(`www.openindu.com`)、JSON-LD、robots/sitemap、Google/Baidu 验证、Baidu 自动推送；Admin 明确 noindex/robots 禁止收录；⑧ 审计/登录/访问日志手机号均由后端脱敏。 |

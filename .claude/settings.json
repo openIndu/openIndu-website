@@ -8,6 +8,21 @@
             "type": "command",
             "comment": "阻止 Claude 直接 push 到 main/master，必须走 PR 流程",
             "command": "jq -r '.tool_input.command' | grep -qE 'git push.*(origin )?(main|master)' && echo '禁止直接 push 到 main/master，请创建 PR' && exit 2 || exit 0"
+          },
+          {
+            "type": "command",
+            "comment": "阻止 Claude 直接执行 docker compose down -v / --volumes（会删除 milvus_data 等命名卷的 14 万向量），需用户手动执行",
+            "command": "jq -r '.tool_input.command' | grep -qE '(docker[- ]compose|docker[[:space:]]+compose)[^&|;]*[[:space:]]+down[^&|;]*(-v\\b|--volumes\\b)' && echo '🛑 阻止执行 docker compose down -v：会永久删除 milvus_data 等命名卷数据（当前 144,993 向量）。如确需删除请用户在终端手动运行。' && exit 2 || exit 0"
+          },
+          {
+            "type": "command",
+            "comment": "阻止 Claude 直接执行 docker volume rm，需用户手动执行",
+            "command": "jq -r '.tool_input.command' | grep -qE 'docker[[:space:]]+volume[[:space:]]+rm\\b' && echo '🛑 阻止执行 docker volume rm：会永久删除卷数据。如确需删除请用户在终端手动运行。' && exit 2 || exit 0"
+          },
+          {
+            "type": "command",
+            "comment": "阻止 Claude 直接执行 docker volume prune（连同未挂载的 milvus_data 一并清理）",
+            "command": "jq -r '.tool_input.command' | grep -qE 'docker[[:space:]]+volume[[:space:]]+prune\\b' && echo '🛑 阻止执行 docker volume prune：会清理所有未使用卷。如确需清理请用户在终端手动运行。' && exit 2 || exit 0"
           }
         ]
       }

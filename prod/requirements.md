@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.9.3 | 日期: 2026-06-26 | 状态: 草案
+> 版本: 0.10.0 | 日期: 2026-06-28 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -125,6 +125,32 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | Baidu 主动推送 | 页面加载时接入百度自动推送脚本 | P2 | ✅ |
 
 > Portal 是公开站点，允许搜索引擎抓取；Admin 是内部后台，禁止抓取（见 §3.3.8）。SEO 配置以静态前端文件和路由组件为主，部署域名规范为 `www.openindu.com`。
+
+#### 2.2.7 智能咨询（面向成员）📋
+
+> 📋 **规划中（v0.10.0 立项）**。Portal 独立能力，全站右下角悬浮气泡入口，基于平台知识库（Milvus）做 RAG 问答，面向 **member 及以上**（与下载中心/工作流权限一致）。后端见 §4.3.12。
+
+| 功能点 | 说明 | 优先级 | 状态 |
+|--------|------|:---:|:---:|
+| 咨询入口 | 全站右下角悬浮气泡 → 展开对话面板；`user`/未登录点击引导登录 | P1 | 📋 |
+| 流式问答 | 输入问题 → SSE 流式渲染答案（首 token 尽快返回，避免长时间空等） | P1 | 📋 |
+| 来源引用 | 答案下方列出引用文档（《文档名》p.页码），可跳转下载中心查原文 | P1 | 📋 |
+| 范围筛选 | 可选按品牌/分类缩小检索范围（复用现有标签体系） | P2 | 📋 |
+| 多轮上下文 | 前端保留最近 N 轮一并发送，支持追问 | P2 | 📋 |
+| 配额提示 | 触发每日上限（429）时友好提示 | P2 | 📋 |
+
+> 与 §2.2.4「AI Agent 工作流」（Claude Code 经 MCP 编排）的区别：智能咨询是**网页内嵌的轻量问答**，登录即用、无需安装 Claude Code；生成由后端内置 LLM 完成（见 §4.3.12 与 MCP 的对比说明）。
+
+#### 2.2.8 工程产物服务（面向成员，远期）📋
+
+> 📋 **规划中（v0.10.0 立项，分期落地）**。将 `openIndu-studio` 的工程能力（`converters/` 产物引擎 + 6 阶段 AI Agent 工作流）通过 Portal **对外服务化**：用户提交工程需求 → 服务端生成真实工程文件（BOM / IO 表 / 电路图 / PLC / HMI）→ 签名下载。后端见 §4.3.13。
+
+| 阶段 | 能力 | 说明 | 状态 |
+|------|------|------|:---:|
+| Phase 2a | converters 确定性产物 API | 用户提交结构化 IR（JSON/表单）→ 服务端跑 `converters.generate()` → 出工程文件；**无 LLM、低风险** | 📋 |
+| Phase 2b | 服务端 AI Agent | 自然语言需求 → 服务端 6 阶段编排（LLM tool-use + 检索）→ IR → 产物；**完整愿景，依赖 studio 成熟** | 📋 |
+
+> ⚠️ **现状约束**：`openIndu-studio` 当前为纯 Python 引擎库（`converters/`，无 server/API/内置 LLM），其"AI 大脑"目前是开发者本地的 Claude Code。对外服务化需在服务端重建 Agent 编排 + 异步任务/产物下载，且 studio 自身处于单品牌 MVP（Phase 0/1，PLC/HMI 仅 C 级中间件）。因此本能力**分期推进**：先 §2.2.7 文档问答咨询见效，再推工程产物服务。
 
 ### 2.3 技术栈
 
@@ -899,6 +925,107 @@ sequenceDiagram
 | 过期 token 清理 | 清理 `token_blacklist` 中已过期的记录 | 每小时 |
 | 离线会话清理 | 清理超过 5 分钟无活动的 `login_sessions` | 每分钟 |
 
+#### 4.3.12 智能咨询 / RAG 对话模块 (`/api/v1/chat`) 📋
+
+> 📋 **规划中（v0.10.0）**。面向 Portal member 的网页问答（§2.2.7）。在 Web API（:8004）内置 LLM，**复用** `services/milvus_service.py` 检索与 `plc_knowledge` 集合，与 §4.4 MCP（服务外部 Claude Code）互不影响。
+
+**与 MCP 的关系**：
+
+| 维度 | §4.4 MCP Server（:8005） | §4.3.12 智能咨询（:8004） |
+|------|------|------|
+| 调用方 | 外部 Claude Code | Portal 网页 member |
+| 生成答案的"大脑" | Claude Code（用户侧） | **后端内置 LLM（DeepSeek，OpenAI 兼容）** |
+| 返回 | 检索片段 | **检索 + 生成的完整答案 + 来源** |
+| 共用 | `milvus_service.search()` / `plc_knowledge` 集合 | 同左 |
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/chat` | POST | RAG 问答：检索 top-k → 拼 grounded prompt → 调 LLM **流式（SSE）** 返回答案 + 来源；每日限 `CHAT_DAILY_LIMIT` 次（admin 豁免），超限 429 | member |
+| `/chat/quota` | GET | 查询当前用户当日剩余配额（前端展示用） | member |
+
+**请求体**（`POST /chat`）：
+
+```json
+{
+  "message": "S7-1200 怎么配置 Modbus TCP？",
+  "history": [{"role":"user","content":"…"},{"role":"assistant","content":"…"}],
+  "filters": { "brand": "siemens", "category": "plc-manual" }
+}
+```
+
+- `history` 可选，前端只传最近 N 轮（默认 ≤6）；后端**每请求无状态**，不落地会话。
+- `filters` 可选，透传给 `milvus_service.search(where_filter=…)`。
+
+**响应**：`text/event-stream`（SSE），事件顺序固定：
+
+```
+event: sources   data: [{document_name, page, brand, category, score}]   ← 检索完成即下发
+event: delta     data: {"text":"…"}                                       ← LLM token 流（多条）
+event: done      data: {"finish_reason":"stop","usage":{...}}
+event: error     data: {"detail":"…"}
+```
+
+**RAG 查询链路**（区别于 §4.3.7 索引链路）：
+
+```
+member (Portal 聊天面板)        Web API :8004              Milvus :19530        LLM API
+   │ POST /api/v1/chat (SSE)        │                          │                  │
+   │ Bearer + message + history     │                          │                  │
+   │───────────────────────────────>│                          │                  │
+   │              1. require_member 鉴权 + 当日配额校验（超限→429） │                  │
+   │              2. BGE-M3 编码问题（CPU，复用 milvus_service）    │                  │
+   │              3. search top-k ───────────────────────────────>│                  │
+   │              4.            <──── 片段 text + 元数据 ──────────│                  │
+   │   <── event: sources           │                          │                  │
+   │              5. 拼 grounded prompt + 调 LLM（stream）─────────────────────────────>│
+   │   <── event: delta {text} ×N ──│  <─────────── token 流 ──────────────────────────│
+   │   <── event: done              │                          │                  │
+   │              6. 写 chat_logs（计配额 + 记 token 用量）        │                  │
+```
+
+**防幻觉 / Prompt 设计**（工业库关键）：
+- **System**：限定"只能依据【知识库片段】回答；不足以回答时明确说『未在知识库中找到相关资料，建议到下载中心查阅原始手册或换个问法』；严禁编造型号参数、接线、寄存器地址、版本号；中文作答，涉及参数/步骤时注明出自哪篇文档"。
+- **User**：`【知识库片段】\n[来源i]《文档名》p.页码\n<chunk text>…\n\n【用户问题】\n{message}`（用户问题作为数据，不覆盖 system，做基础 prompt 注入防护）。
+- `sources` 由检索结果元数据去重生成，前端渲染为可点击引用。
+
+**成本 / 限流防刷**：member/admin 准入 + `CHAT_DAILY_LIMIT`（默认 30/天，admin 豁免，基于 `chat_logs` 当日计数，超限 429，复用 §4.3.6-1 下载限额范式）+ slowapi 按 IP 突发限流。
+
+> ⚠️ **部署注意**：Nginx/Ingress 对 `/api/v1/chat` 须关闭缓冲（`proxy_buffering off` 或响应头 `X-Accel-Buffering: no`），否则 SSE 不流式。
+
+#### 4.3.13 工程产物服务模块 (`/api/v1/studio`) 📋
+
+> 📋 **规划中（v0.10.0 立项，分期）**。将 `openIndu-studio` 的 `converters/` 引擎对外服务化（§2.2.8）。生成耗时（分钟级），采用**异步任务**：建任务 → 进度（SSE/轮询）→ 产物落 OSS → 签名下载（复用 §4.3.6-1）。
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/studio/jobs` | POST | 创建产物生成任务（Phase 2a：提交 IR；Phase 2b：提交自然语言需求）→ 返回 job_id | member |
+| `/studio/jobs/{id}` | GET | 查询任务状态/进度（pending/running/succeeded/failed） | member |
+| `/studio/jobs/{id}/events` | GET | SSE 进度流（可选） | member |
+| `/studio/jobs/{id}/artifacts` | GET | 列出产物 + 签名下载 URL | member |
+
+**目标架构**：
+
+```
+Portal(member)
+  │ 提交工程需求（Phase2a: IR 表单 / Phase2b: 自然语言）
+  ▼
+web-api :8004  /api/v1/studio/jobs  （建任务 / 进度 / 下载）
+  │ 入队（异步）
+  ▼
+Studio 服务（converters 依赖：pip 引入 或 独立容器）
+  ├─ Phase 2b: LLM Agent 编排（tool-use）
+  │     ├ 工具: milvus_service 检索（注入 resolver.rag_fn）
+  │     ├ 工具: 联网兜底（注入 resolver.web_fn）
+  │     └ 产出 + Pydantic 校验 ProjectIR
+  ├─ Phase 2a: converters.generate(IR) → BOM/IO/电路/PLC/HMI 文件
+  ▼
+OSS 产物目录 → 签名 URL 下载（复用 §4.3.6-1）
+```
+
+> **集成方式（待定）**：`openIndu-studio` 为独立仓，接入二选一——(a) 作为 pip 依赖引入 web-api 进程内异步任务；(b) 拆为独立 `studio` 服务容器，web-api 经内网调用。`converters/research/resolver.py` 已是依赖注入式（`rag_fn`/`web_fn`/`backfill_fn`），可直接把 `milvus_service` 与联网检索注入。
+>
+> ⚠️ **风险**：工业产物误生成（接线/PLC 逻辑）涉及安全与责任，Phase 2b 的 Agent 大脑建议用更强模型（如 `claude-opus-4-8`），并设人工复核闸门；上线前以"成都 BOE UV 固化机"黄金用例回归。
+
 ### 4.4 MCP Server 工具定义
 
 > MCP Server 是一个独立的 FastAPI 应用（端口 8005），仅内网/localhost 可访问，供 Claude Code 通过 MCP 协议调用。工具按文档分类对齐。
@@ -933,6 +1060,7 @@ sequenceDiagram
 | httpx | 0.x | HTTP 客户端（调用短信服务） |
 | geoip2 | latest | IP 地理位置解析（历史方案，已由 ip2region 离线 xdb 替代） |
 | py-ip2region | latest | IP 地理位置解析（当前方案，读取 `data/ip2region_v4.xdb`） |
+| openai | 1.x | 调用 DeepSeek / 通义（OpenAI 兼容协议），用于 §4.3.12 智能咨询答案生成 📋 |
 
 ### 4.6 数据库设计
 
@@ -1094,6 +1222,27 @@ visit_events             # 访客埋点（数据看板）🆕
 ├── is_authenticated     # 是否已登录访客（索引）
 ├── user_id              # 已登录则记录 user_id（可空，索引）
 └── created_at           # 访问时间（索引，按日聚合趋势）
+
+chat_logs                 # 智能咨询日志（每日配额计数 + 用量审计）📋
+├── id                    # 主键（BIGSERIAL）
+├── user_id               # 用户 ID（与 created_at 联合索引，按日统计配额）
+├── ip_address            # 提问时 IP
+├── question              # 用户问题（member 已登录；如有隐私顾虑可改存哈希）
+├── source_docs           # 命中文档名列表（JSON，便于分析知识盲区）
+├── prompt_tokens         # 输入 token（成本核算，可空）
+├── completion_tokens     # 输出 token（成本核算，可空）
+└── created_at            # 提问时间（索引）
+
+studio_jobs               # 工程产物生成任务（§4.3.13，远期）📋
+├── id                    # 主键（BIGSERIAL）
+├── user_id               # 发起用户
+├── job_type              # ir（Phase 2a）/ agent（Phase 2b）
+├── status                # pending / running / succeeded / failed
+├── input_payload         # IR JSON 或自然语言需求（JSON）
+├── output_prefix         # OSS 产物目录前缀
+├── error_message         # 失败原因（可空）
+├── created_at
+└── finished_at
 ```
 
 > 时间字段约定：`login_sessions.last_active_at` 与 `visit_events.created_at` 按 UTC 存储，统计/日志接口返回带 `+00:00` 的 ISO 时间；Admin 前端统一按 `Asia/Shanghai` 渲染，避免 UTC 裸时间被浏览器误按本地时区二次偏移。
@@ -1102,7 +1251,7 @@ visit_events             # 访客埋点（数据看板）🆕
 
 ```
 plc_knowledge            # 向量知识库
-├── embedding            # BGE-M3 768维向量
+├── embedding            # BGE-M3 1024 维向量（dim=1024；原误写 768，v0.10.0 校正）
 ├── brand                # 品牌
 ├── document_name        # 文档名
 ├── page                 # 页码
@@ -1110,6 +1259,8 @@ plc_knowledge            # 向量知识库
 ├── category             # 分类
 └── language             # 语言
 ```
+
+> 📌 实际集合字段（代码 `_init_milvus_collection`）：`id / text / document_name / brand / category / page / chunk_id / embedding(1024)`；上方 `language` 为旧文档残留、实际不存在（v0.10.0 校正）。
 
 ### 4.7 配置分层管理
 
@@ -1157,6 +1308,13 @@ plc_knowledge            # 向量知识库
 | `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
 | `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
 | `UPLOAD_PART_SIZE_MB` / `UPLOAD_PRESIGN_EXPIRE_MINUTES` | `64` / `120` | 直传分片大小 / presigned 有效期 |
+| `LLM_PROVIDER` | `deepseek` | 智能咨询生成模型提供方（OpenAI 兼容：deepseek / dashscope）📋 |
+| `LLM_API_KEY` | (空) | 大模型 API Key（**敏感**，K8s Secret 注入）📋 |
+| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容 base_url 📋 |
+| `LLM_MODEL` | `deepseek-chat` | 生成模型名 📋 |
+| `RAG_TOP_K` | `5` | 智能咨询单次检索片段数 📋 |
+| `CHAT_DAILY_LIMIT` | `30` | 每用户每日咨询上限（admin 豁免）📋 |
+| `LLM_TIMEOUT_SECONDS` | `60` | LLM 调用超时（秒）📋 |
 
 ### 4.8 外部依赖
 
@@ -1168,6 +1326,7 @@ plc_knowledge            # 向量知识库
 | etcd 3.5 | Milvus 元数据 | ✅ |
 | RAG Server | PDF 解析与向量索引 | ✅ |
 | 阿里云短信 / 腾讯云短信 | 短信验证码发送 | ✅ |
+| 大模型 API（DeepSeek / 通义千问） | 智能咨询答案生成（§4.3.12）；检索仍只依赖 Milvus、不依赖 GPU | ⬜ 智能咨询启用时必需 📋 |
 | ip2region xdb | IP 地理位置解析（离线库 `data/ip2region_v4.xdb`，可通过 `IP2REGION_XDB_PATH` 覆盖；缺失时降级为未知） | ✅ |
 | GeoLite2 | IP 地理位置数据库（历史方案，当前不再作为主路径） | ⬜ 可选 |
 
@@ -1327,7 +1486,10 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | Phase 4 | Admin: 文档管理 + 软件管理 + 业务参数配置（从 Vue 重写为 React） | 2.5 天 |
 | Phase 5 | Portal: 登录页（短信验证码）+ 资源浏览页 + 工作流页面 + 内容 API 对接 | 2 天 |
 | Phase 6 | MCP Server 工具实现（对齐分类）+ OSS Presigned URL 下载 + 联调测试 + Nginx + 部署 | 2 天 |
-| **合计** | | **~14 天** |
+| **小计（迁移期）** | | **~14 天** |
+| Phase 7 📋 | **智能咨询**（§2.2.7 / §4.3.12）：web-api `/chat` SSE + DeepSeek 接入 + `chat_logs`/配额 + Portal 悬浮气泡 + 本地验证 | ~1–2 周 |
+| Phase 8 📋 | **工程产物服务 2a**（§2.2.8 / §4.3.13）：converters 接入 + 异步任务 + IR 输入 + 产物 OSS 下载 | ~2–3 周 |
+| Phase 9 📋 | **工程产物服务 2b**：服务端 6 阶段 AI Agent（NL→IR）+ 多品牌 + 人工复核 + 黄金用例回归 | ~2–3 月（依赖 studio 成熟） |
 
 ---
 
@@ -1340,6 +1502,7 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 可用性 | 后端健康检查端点（127.0.0.1）、数据库连接池、容器自动重启、上传/落库事务一致性（失败回滚清理对象） |
 | 可维护性 | OpenAPI 自动文档、代码类型提示、统一错误响应格式（`utils.ok`）、双应用共享代码、存储后端门面抽象（local/OSS 一键切换） |
 | 可扩展性 | 模块化目录结构、新增模块只需加 router + model、标签体系数据驱动（品牌/分类/系列免改代码） |
+| AI 能力 📋 | 智能咨询：答案 grounded（仅依据检索片段、防幻觉）、prompt 注入防护、每日配额 + slowapi 限流、LLM 流式（SSE 须关 Nginx 缓冲）、LLM 走 OpenAI 兼容抽象（换厂商只改 `.env`）；工程产物服务：异步任务 + 人工复核闸门 + 黄金用例回归 |
 
 ---
 
@@ -1384,3 +1547,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.9.1 | 2026-06-26 | **软件系列历史债务清理**（backend `1f4ffd2` / admin `6ad5ad6` / portal `9d81d91`）：① 删除后端运行时模型/API 中的 `software.series` 暴露，软件列表（含 `expand_versions`）不再返回 `series`；② 新增迁移 `20260626_remove_software_series` 删除 `software.series` 列与 `ix_software_series` 索引，并清理历史 `resource_tags.type='sw_series'`；③ Admin 软件 API 类型不再接受 `series`，设置页仅保留文档系列；④ Portal 软件资源请求不再携带文档 `series` 参数，文档系列筛选保持不变。 |
 | 0.9.2 | 2026-06-26 | **PV/UV 与同客户端多账号会话修正**（backend `0b29015` / admin `ad3939d` / portal `228670e`）：① `visit_events` 新增 `visitor_id` 与 `event_type=page_view`，Portal 埋点携带浏览器级 `visitor_id` 并对同路径 1 秒内重复埋点去重；② Dashboard 新增当前/今日/本月/累计 PV 与 UV 字段，PV=页面访问次数，UV=visitor_id 优先、历史数据按 IP fallback；③ `login_sessions` 新增 `client_id`，Portal/Admin API 请求统一携带 `X-OpenIndu-Client-Id`；④ 同一 client_id 切换账号时旧账号会话自动离线，但不同设备/浏览器即使同 IP 仍允许多个账号在线；⑤ logout 优先按 client_id 下线当前浏览器会话。 |
 | 0.9.3 | 2026-06-26 | **统一浏览器标识为 client_id + 法律披露 + Dashboard 布局**（backend `60ebc3b` / admin `9147096` / portal `16bf244`）：① 将 `visit_events.visitor_id` 重命名为 `client_id`（迁移 `20260626_rename_visitor_to_client`，保留历史行），`/visits/track` 改收 `client_id`，UV 改按 `client_id` 去重；Portal/Admin 统一只保留一个浏览器 `openindu_client_id`，同时服务 PV/UV 统计与登录会话；② Portal 下载中心列表上方新增版权说明（文档/软件版权归原作者/原厂商，平台仅提供检索与分发）；③ 隐私声明/法律声明/关于 Cookies 三页披露 `openindu_client_id` 本地存储项与第三方版权立场；④ Admin Dashboard「总情况」卡片改为 3+2 布局（UV/PV/会员 第一行，文档/软件 第二行）；⑤ 迁移 `20260626_add_visit_client_ids` 补删旧唯一约束 `uq_login_session_device`，修复 client_id 会话写入 UniqueViolation 静默失败。 |
+| 0.10.0 | 2026-06-28 | **📋 智能咨询 + 工程产物服务化立项（分期）**：① Portal 新增面向 member 的「智能咨询」右下角悬浮 RAG 问答（§2.2.7）与「工程产物服务」（§2.2.8，远期）；② 后端新增 `/api/v1/chat` SSE 流式问答模块（§4.3.12），复用 `milvus_service` 检索 + 内置 DeepSeek 生成，明确与 MCP 区分；新增 `/api/v1/studio` 工程产物任务模块（§4.3.13，分 Phase 2a 确定性产物 API / 2b 服务端 Agent）；③ 新增 `chat_logs`、`studio_jobs` 表与每日配额；④ 新增 `LLM_*` / `RAG_TOP_K` / `CHAT_DAILY_LIMIT` 配置、`openai` 依赖、LLM 外部依赖；⑤ 校正 Milvus 维度 768→1024 并对齐实际字段；⑥ 开发计划新增 Phase 7/8/9；⑦ 厘清 `openIndu-studio` 现状（纯 `converters` 引擎库、无 server/LLM、Claude Code 为大脑、单品牌 MVP），服务化采用分期路线。 |

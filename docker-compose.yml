@@ -94,10 +94,16 @@ services:
       context: ./openIndu-backend
     command: uvicorn app.mcp_app:app --host 0.0.0.0 --port 8005 --reload
     env_file: .env
+    environment:
+      # MCP 检索工具走 BGE-M3 向量化，复用聚合仓 ./models 缓存（与 web-api 一致）；
+      # 强制离线，避免每次首查向 huggingface.co 发 HEAD 在国内超时拖慢检索。
+      - HF_HOME=/models/huggingface
+      - HF_HUB_OFFLINE=1
     ports:
       - "8005:8005"
     volumes:
       - ./openIndu-backend:/app
+      - ./models:/models
     depends_on:
       - milvus
 

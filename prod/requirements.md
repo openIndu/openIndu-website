@@ -1036,6 +1036,7 @@ OSS 产物目录 → 签名 URL 下载（复用 §4.3.6-1）
 | `search_hardware_manual` | brand, keyword, top_k | `hardware-manual` | 按品牌搜索硬件手册 |
 | `search_driver_manual` | brand, keyword, top_k | `driver-manual` | 按品牌搜索驱动器手册 |
 | `search_hmi_manual` | brand, keyword, top_k | `hmi-manual` | 按品牌搜索 HMI 手册 |
+| `search_robot_manual` | brand, keyword, top_k | `robot-manual` | 按品牌搜索机器人手册 |
 | `search_software_manual` | brand, keyword, top_k | `software-manual` | 按品牌搜索软件使用手册 |
 | `search_best_practice` | topic, top_k | `best-practice` | 搜索最佳实践文档 |
 | `search_electrical_standard` | standard_name, keyword | `electrical-standard` | 搜索电气规范 |

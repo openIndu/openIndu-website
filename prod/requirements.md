@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.10.0 | 日期: 2026-06-28 | 状态: 草案
+> 版本: 0.11.0 | 日期: 2026-06-30 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -67,6 +67,7 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 注销账号 | 个人中心可注销自己的账号（`DELETE /auth/me`） | P1 |
 | 法律页面 | 隐私声明、法律声明、Cookies 等静态法律页（`LegalPages.tsx`） | P1 |
 | 隐私声明确认 | 登录/注册前必须勾选同意隐私声明 | P1 |
+| 会员申请 | `user` 角色用户可在个人中心提交会员升级申请（`POST /member-applications`）；申请状态（pending/approved/rejected）实时展示；已是 member/admin 则不显示 | P1 | ✅ |
 
 > 登录采用**手机号 + 短信动态验证码**方式，无需设置密码。Portal 已将登录与注册合并为统一认证入口：用户输入手机号和验证码后，后端按手机号识别为登录或注册。验证码有效期 5 分钟，同一手机号每分钟限发 1 次，每日上限 10 条。短信服务对接阿里云短信或腾讯云短信。Refresh token 也记录 `jti`，支持拉黑时批量吊销，防止 refresh token 泄露后被滥用；前端在收到普通 API `401` 时先尝试 `/auth/refresh`，成功后重放原请求。
 >
@@ -126,20 +127,26 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 > Portal 是公开站点，允许搜索引擎抓取；Admin 是内部后台，禁止抓取（见 §3.3.8）。SEO 配置以静态前端文件和路由组件为主，部署域名规范为 `www.openindu.com`。
 
-#### 2.2.7 智能咨询（面向成员）📋
+#### 2.2.7 智能咨询（面向成员）✅
 
-> 📋 **规划中（v0.10.0 立项）**。Portal 独立能力，全站右下角悬浮气泡入口，基于平台知识库（Milvus）做 RAG 问答，面向 **member 及以上**（与下载中心/工作流权限一致）。后端见 §4.3.12。
+> **v0.11.0 已落地**。Portal 全站右下角悬浮气泡入口（`ChatWidget.tsx`），基于平台知识库（Milvus）做 RAG 问答，面向 **member 及以上**。后端见 §4.3.12。
 
 | 功能点 | 说明 | 优先级 | 状态 |
 |--------|------|:---:|:---:|
-| 咨询入口 | 全站右下角悬浮气泡 → 展开对话面板；`user`/未登录点击引导登录 | P1 | 📋 |
-| 流式问答 | 输入问题 → SSE 流式渲染答案（首 token 尽快返回，避免长时间空等） | P1 | 📋 |
-| 来源引用 | 答案下方列出引用文档（《文档名》p.页码），可跳转下载中心查原文 | P1 | 📋 |
+| 咨询入口 | 全站右下角悬浮气泡 → 展开对话面板；`user` 展示申请会员入口；未登录引导登录 | P1 | ✅ |
+| 流式问答 | 输入问题 → SSE 流式渲染答案（首 token 尽快返回，避免长时间空等） | P1 | ✅ |
+| 来源引用 | 答案下方列出引用文档（《文档名》p.页码），可复制链接 | P1 | ✅ |
+| 会话管理 | 持久化多会话（新建/切换/重命名/删除），历史消息从服务端加载（无需前端传 history）| P1 | ✅ |
+| 自动命名会话 | 首条消息前 30 字自动设为会话标题 | P2 | ✅ |
 | 范围筛选 | 可选按品牌/分类缩小检索范围（复用现有标签体系） | P2 | 📋 |
-| 多轮上下文 | 前端保留最近 N 轮一并发送，支持追问 | P2 | 📋 |
-| 配额提示 | 触发每日上限（429）时友好提示 | P2 | 📋 |
+| 配额提示 | 触发每日上限（429）时友好提示 | P2 | ✅ |
+| 会员申请引导 | `user` 角色在咨询面板内展示申请状态，支持直接发起申请（`POST /member-applications`） | P1 | ✅ |
 
 > 与 §2.2.4「AI Agent 工作流」（Claude Code 经 MCP 编排）的区别：智能咨询是**网页内嵌的轻量问答**，登录即用、无需安装 Claude Code；生成由后端内置 LLM 完成（见 §4.3.12 与 MCP 的对比说明）。
+>
+> **两种对话模式**：
+> - **无状态模式** (`POST /chat`)：不绑定会话，history 可选由前端传入，结果不落库（轻量调用）。
+> - **会话模式** (`POST /chat/sessions/{id}/stream`)：消息落库（`chat_messages` 表），下次打开自动恢复，history 从 DB 读取最近 6 条。ChatWidget 默认使用会话模式。
 
 #### 2.2.8 工程产物服务（面向成员，远期）📋
 
@@ -211,7 +218,8 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 解除拉黑 | 将黑名单用户恢复正常状态 | P1 |
 | 软删除用户 | 管理员删除用户时仅设置 `deleted_at` 并吊销 token/会话；审计与历史访问/下载记录保留 | P1 ✅ |
 | 在线统计 | 展示当前在线人数、登录地理位置分布（`OnlineStats.tsx`） | P1 |
-| 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏） | P2 ✅ |
+| 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏）。action 范围：`blacklist / unblacklist / force_logout / role_change / member_approve / member_reject` | P2 ✅ |
+| 会员申请管理 | 分页展示 `user` 发起的会员升级申请（`MemberApplicationList.tsx`），支持按状态筛选、申请时间排序；管理员可一键批准（升为 member）或驳回；操作均记录审计日志 | P1 | ✅ |
 
 **拉黑与强制登出机制**：
 
@@ -380,6 +388,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 |------|------|---------|
 | 数据看板 | `Dashboard.tsx` | §3.3.2-1 |
 | 用户列表 / 详情 | `users/UserList.tsx`、`users/UserDetail.tsx` | §3.3.2 |
+| 会员申请审核 | `users/MemberApplicationList.tsx` | §3.3.2 |
 | 在线统计 | `stats/OnlineStats.tsx` | §3.3.2 |
 | 统计访问日志 | `stats/OnlineStats.tsx`（访问日志 tab） | §3.3.2-1 |
 | 审计日志 | `stats/AuditLogs.tsx` | §3.3.2 |
@@ -466,6 +475,7 @@ openIndu-backend/
 | `/auth/send-code` | POST | 发送短信验证码（60s 冷却，5min 有效） | 公开 |
 | `/auth/login` | POST | 手机号 + 验证码登录，返回 JWT（含 jti） | 公开 |
 | `/auth/register` | POST | 手机号 + 验证码注册，首个用户自动 admin | 公开 |
+| `/auth/sign-in` | POST | **统一登录/注册入口**：手机号不存在时自动注册，返回 `is_new_user: bool` 区分登录/新建；Portal 推荐使用此端点 🆕 | 公开 |
 | `/auth/refresh` | POST | 刷新 access token | 公开 |
 | `/auth/me` | GET | 获取当前用户信息 | 登录 |
 | `/auth/me` | PATCH | 更新当前用户资料（昵称等） | 登录 |
@@ -925,9 +935,34 @@ sequenceDiagram
 | 过期 token 清理 | 清理 `token_blacklist` 中已过期的记录 | 每小时 |
 | 离线会话清理 | 清理超过 5 分钟无活动的 `login_sessions` | 每分钟 |
 
-#### 4.3.12 智能咨询 / RAG 对话模块 (`/api/v1/chat`) 📋
+#### 4.3.12-1 会员申请模块 (`/api/v1/member-applications`) ✅
 
-> 📋 **规划中（v0.10.0）**。面向 Portal member 的网页问答（§2.2.7）。在 Web API（:8004）内置 LLM，**复用** `services/milvus_service.py` 检索与 `plc_knowledge` 集合，与 §4.4 MCP（服务外部 Claude Code）互不影响。
+> **v0.11.0 新增**。允许 `user` 角色用户发起会员升级申请，管理员审批后自动晋升为 `member`。申请状态存储于 `users` 表（不再独立建表）。
+
+| 端点 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/member-applications` | POST | 提交会员申请（可附 note）；`pending` 状态下不允许重复申请；`rejected` 后可重新申请 | 登录（user/member/admin） |
+| `/member-applications/mine` | GET | 获取当前用户的申请状态（status/created_at）；从未申请返回 null | 登录 |
+| `/admin/member-applications` | GET | 管理员分页查看所有申请列表，支持 `status` 过滤（pending/approved/rejected），按 `created_at` 排序；手机号脱敏 | admin |
+| `/admin/member-applications/{user_id}/approve` | PUT | 批准申请：将目标用户 role 升为 `member`，记录审计日志（action=`member_approve`） | admin |
+| `/admin/member-applications/{user_id}/reject` | PUT | 驳回申请，记录审计日志（action=`member_reject`） | admin |
+
+**申请状态机**：
+
+```
+（初始: NULL/未申请）
+    │ POST /member-applications
+    ▼
+  pending ──── admin approve ──→ approved（user.role → member）
+     │
+     └── admin reject ─────────→ rejected
+                                     │
+                                     └── 用户可再次 POST → pending（重新申请）
+```
+
+#### 4.3.12 智能咨询 / RAG 对话模块 (`/api/v1/chat`) ✅
+
+> **v0.11.0 已落地**（原 v0.10.0 规划）。面向 Portal member 的网页问答（§2.2.7）。在 Web API（:8004）内置 LLM，**复用** `services/milvus_service.py` 检索与 `plc_knowledge` 集合，与 §4.4 MCP（服务外部 Claude Code）互不影响。
 
 **与 MCP 的关系**：
 
@@ -938,10 +973,16 @@ sequenceDiagram
 | 返回 | 检索片段 | **检索 + 生成的完整答案 + 来源** |
 | 共用 | `milvus_service.search()` / `plc_knowledge` 集合 | 同左 |
 
-| 端点 | 方法 | 说明 | 权限 |
-|------|------|------|------|
-| `/chat` | POST | RAG 问答：检索 top-k → 拼 grounded prompt → 调 LLM **流式（SSE）** 返回答案 + 来源；每日限 `CHAT_DAILY_LIMIT` 次（admin 豁免），超限 429 | member |
-| `/chat/quota` | GET | 查询当前用户当日剩余配额（前端展示用） | member |
+| 端点 | 方法 | 说明 | 权限 | 状态 |
+|------|------|------|------|:---:|
+| `/chat` | POST | **无状态** RAG 问答：检索 top-k → 拼 grounded prompt → 调 LLM **流式（SSE）** 返回答案 + 来源；每日限 `CHAT_DAILY_LIMIT` 次（admin 豁免），超限 429 | member | ✅ |
+| `/chat/quota` | GET | 查询当前用户当日剩余配额（limit/used/remaining/unlimited） | member | ✅ |
+| `/chat/sessions` | GET | 列出当前用户的所有对话会话（按 updated_at 倒序） | member | ✅ |
+| `/chat/sessions` | POST | 创建新会话（默认标题「新会话」） | member | ✅ |
+| `/chat/sessions/{id}` | PATCH | 重命名会话（最长 100 字） | member | ✅ |
+| `/chat/sessions/{id}` | DELETE | 删除会话及其所有消息（CASCADE） | member | ✅ |
+| `/chat/sessions/{id}/messages` | GET | 加载会话历史消息列表（按 id 正序） | member | ✅ |
+| `/chat/sessions/{id}/stream` | POST | **会话模式** RAG 流式问答：自动加载 DB 最近 6 条消息作 history，answer 落库（`chat_messages`），更新 `chat_sessions.updated_at`；首条消息自动命名会话 | member | ✅ |
 
 **请求体**（`POST /chat`）：
 
@@ -1079,6 +1120,10 @@ users                    # 用户表
 ├── blacklisted_by       # 拉黑操作人（admin ID）🆕
 ├── deleted_at            # 软删除时间；非 NULL 时隐藏于 Admin 用户列表且禁止登录 🆕
 ├── tokens_invalidated_at # 该时间之前签发的 token 全部视为失效（强制登出/软删除）🆕
+├── member_apply_status   # 会员申请状态：NULL(未申请)/pending/approved/rejected 🆕
+├── member_apply_note     # 申请备注（用户填写，最长 500 字）🆕
+├── member_apply_at       # 最近申请时间 🆕
+├── member_reviewed_by    # 审核操作人（admin ID）🆕
 ├── created_at
 └── last_login
 
@@ -1224,7 +1269,23 @@ visit_events             # 访客埋点（数据看板）🆕
 ├── user_id              # 已登录则记录 user_id（可空，索引）
 └── created_at           # 访问时间（索引，按日聚合趋势）
 
-chat_logs                 # 智能咨询日志（每日配额计数 + 用量审计）📋
+chat_sessions             # 智能咨询对话会话（持久化多轮上下文）🆕
+├── id                    # 主键（BIGSERIAL）
+├── user_id               # 关联用户（CASCADE DELETE）
+├── title                 # 会话标题（默认「新会话」；首条消息前 30 字自动命名）
+├── created_at
+└── updated_at            # 每次收到 assistant 消息后更新（用于列表排序）
+
+chat_messages             # 智能咨询消息（每轮 user/assistant 各一条）🆕
+├── id                    # 主键（BIGSERIAL）
+├── session_id            # 关联 chat_sessions.id（CASCADE DELETE）
+├── role                  # "user" | "assistant"
+├── content               # 消息正文（TEXT，最长 4000 字 / user；assistant 无限）
+├── sources               # assistant 消息引用的文档元数据（JSON，可空）
+├── mode                  # 生成模式："grounded"（有检索支撑）| "fallback"（知识库无相关内容）
+└── created_at
+
+chat_logs                 # 智能咨询日志（每日配额计数 + 用量审计）✅
 ├── id                    # 主键（BIGSERIAL）
 ├── user_id               # 用户 ID（与 created_at 联合索引，按日统计配额）
 ├── ip_address            # 提问时 IP
@@ -1309,13 +1370,15 @@ plc_knowledge            # 向量知识库
 | `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
 | `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
 | `UPLOAD_PART_SIZE_MB` / `UPLOAD_PRESIGN_EXPIRE_MINUTES` | `64` / `120` | 直传分片大小 / presigned 有效期 |
-| `LLM_PROVIDER` | `deepseek` | 智能咨询生成模型提供方（OpenAI 兼容：deepseek / dashscope）📋 |
-| `LLM_API_KEY` | (空) | 大模型 API Key（**敏感**，K8s Secret 注入）📋 |
-| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容 base_url 📋 |
-| `LLM_MODEL` | `deepseek-chat` | 生成模型名 📋 |
-| `RAG_TOP_K` | `5` | 智能咨询单次检索片段数 📋 |
-| `CHAT_DAILY_LIMIT` | `30` | 每用户每日咨询上限（admin 豁免）📋 |
-| `LLM_TIMEOUT_SECONDS` | `60` | LLM 调用超时（秒）📋 |
+| `LLM_PROVIDER` | `deepseek` | 智能咨询生成模型提供方（OpenAI 兼容：deepseek / dashscope） |
+| `LLM_API_KEY` | (空) | 大模型 API Key（**敏感**，K8s Secret 注入） |
+| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容 base_url |
+| `LLM_MODEL` | `deepseek-chat` | 生成模型名 |
+| `LLM_TEMPERATURE` | `0.2` | LLM 生成温度（低温提高一致性，适合工业知识问答）🆕 |
+| `LLM_MAX_TOKENS` | `1024` | LLM 单次最大输出 token 数 🆕 |
+| `RAG_TOP_K` | `5` | 智能咨询单次检索片段数 |
+| `CHAT_DAILY_LIMIT` | `30` | 每用户每日咨询上限（admin 豁免） |
+| `LLM_TIMEOUT_SECONDS` | `60` | LLM 调用超时（秒） |
 
 ### 4.8 外部依赖
 
@@ -1549,3 +1612,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.9.2 | 2026-06-26 | **PV/UV 与同客户端多账号会话修正**（backend `0b29015` / admin `ad3939d` / portal `228670e`）：① `visit_events` 新增 `visitor_id` 与 `event_type=page_view`，Portal 埋点携带浏览器级 `visitor_id` 并对同路径 1 秒内重复埋点去重；② Dashboard 新增当前/今日/本月/累计 PV 与 UV 字段，PV=页面访问次数，UV=visitor_id 优先、历史数据按 IP fallback；③ `login_sessions` 新增 `client_id`，Portal/Admin API 请求统一携带 `X-OpenIndu-Client-Id`；④ 同一 client_id 切换账号时旧账号会话自动离线，但不同设备/浏览器即使同 IP 仍允许多个账号在线；⑤ logout 优先按 client_id 下线当前浏览器会话。 |
 | 0.9.3 | 2026-06-26 | **统一浏览器标识为 client_id + 法律披露 + Dashboard 布局**（backend `60ebc3b` / admin `9147096` / portal `16bf244`）：① 将 `visit_events.visitor_id` 重命名为 `client_id`（迁移 `20260626_rename_visitor_to_client`，保留历史行），`/visits/track` 改收 `client_id`，UV 改按 `client_id` 去重；Portal/Admin 统一只保留一个浏览器 `openindu_client_id`，同时服务 PV/UV 统计与登录会话；② Portal 下载中心列表上方新增版权说明（文档/软件版权归原作者/原厂商，平台仅提供检索与分发）；③ 隐私声明/法律声明/关于 Cookies 三页披露 `openindu_client_id` 本地存储项与第三方版权立场；④ Admin Dashboard「总情况」卡片改为 3+2 布局（UV/PV/会员 第一行，文档/软件 第二行）；⑤ 迁移 `20260626_add_visit_client_ids` 补删旧唯一约束 `uq_login_session_device`，修复 client_id 会话写入 UniqueViolation 静默失败。 |
 | 0.10.0 | 2026-06-28 | **📋 智能咨询 + 工程产物服务化立项（分期）**：① Portal 新增面向 member 的「智能咨询」右下角悬浮 RAG 问答（§2.2.7）与「工程产物服务」（§2.2.8，远期）；② 后端新增 `/api/v1/chat` SSE 流式问答模块（§4.3.12），复用 `milvus_service` 检索 + 内置 DeepSeek 生成，明确与 MCP 区分；新增 `/api/v1/studio` 工程产物任务模块（§4.3.13，分 Phase 2a 确定性产物 API / 2b 服务端 Agent）；③ 新增 `chat_logs`、`studio_jobs` 表与每日配额；④ 新增 `LLM_*` / `RAG_TOP_K` / `CHAT_DAILY_LIMIT` 配置、`openai` 依赖、LLM 外部依赖；⑤ 校正 Milvus 维度 768→1024 并对齐实际字段；⑥ 开发计划新增 Phase 7/8/9；⑦ 厘清 `openIndu-studio` 现状（纯 `converters` 引擎库、无 server/LLM、Claude Code 为大脑、单品牌 MVP），服务化采用分期路线。 |
+| 0.11.0 | 2026-06-30 | **代码对齐刷新**（基于 backend `20260629` 迁移 / admin `20260629` / portal `ChatWidget` 最新）：① 🆕 **会员申请体系**（§3.3.2 + §4.3.12-1）：`user` 可在 Portal 个人中心或聊天 Widget 申请升级为 member，admin 在新增 `MemberApplicationList.tsx` 页面批准/驳回；申请状态字段合并入 `users` 表（`member_apply_status/note/at/reviewed_by`），审计日志扩展 `member_approve / member_reject` action；② ✅ **智能咨询落地**（§2.2.7 / §4.3.12，原📋变为✅）：`ChatWidget.tsx` 已实现全功能，包括右下角悬浮气泡、会员引导入口；③ 🆕 **对话会话持久化**（§4.3.12 扩展）：新增 `chat_sessions` / `chat_messages` 表及 CRUD API（GET/POST/PATCH/DELETE `/chat/sessions`，GET `/chat/sessions/{id}/messages`，POST `/chat/sessions/{id}/stream`）；会话模式自动从 DB 读取 history、自动落库 assistant 回复、首条消息自动命名会话；④ 🆕 **统一登录端点** `POST /auth/sign-in`（§4.3.1）；⑤ 🆕 补充配置项 `LLM_TEMPERATURE`（0.2）/ `LLM_MAX_TOKENS`（1024）；⑥ 🔔 `chat_logs` 状态由📋变为✅（随智能咨询落地）。 |

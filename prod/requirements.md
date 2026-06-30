@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.11.0 | 日期: 2026-06-30 | 状态: 草案
+> 版本: 0.12.0 | 日期: 2026-06-30 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -211,15 +211,15 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 | 功能点 | 说明 | 优先级 |
 |--------|------|:---:|
-| 用户列表 | 分页展示所有未软删除用户（手机号、角色、注册时间、最后登录、在线状态、登录 IP、登录地） | P0 |
+| 用户列表 | 分页展示所有未软删除用户（手机号、角色、注册时间、最后登录、在线状态、登录 IP、登录地、会员申请状态）；支持按手机号关键词、**角色**、**申请状态**筛选，支持按 `created_at`/`last_login` 排序 🆕 | P0 |
 | 角色分配 | 管理员修改用户角色（user/member/admin） | P0 |
 | 拉黑用户 | 将用户设为黑名单状态，禁止登录 | P0 |
 | 强制登出 | 使指定用户的所有 Token 立即失效，强制下线 | P0 |
 | 解除拉黑 | 将黑名单用户恢复正常状态 | P1 |
 | 软删除用户 | 管理员删除用户时仅设置 `deleted_at` 并吊销 token/会话；审计与历史访问/下载记录保留 | P1 ✅ |
 | 在线统计 | 展示当前在线人数、登录地理位置分布（`OnlineStats.tsx`） | P1 |
-| 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏）。action 范围：`blacklist / unblacklist / force_logout / role_change / member_approve / member_reject` | P2 ✅ |
-| 会员申请管理 | 分页展示 `user` 发起的会员升级申请（`MemberApplicationList.tsx`），支持按状态筛选、申请时间排序；管理员可一键批准（升为 member）或驳回；操作均记录审计日志 | P1 | ✅ |
+| 操作日志 | 记录管理员对用户的操作历史，独立审计日志页（`AuditLogs.tsx`，`GET /admin/audit-logs`，手机号脱敏，支持按 `created_at` 排序 🆕）。action 范围：`blacklist / unblacklist / force_logout / role_change / member_approve / member_reject` | P2 ✅ |
+| 会员申请管理（统一视图）| **已与用户列表合并**（`UserList.tsx`）：「会员申请」列展示 pending/approved/rejected 状态徽章；「操作」列对 pending 行直接显示通过/驳回按钮，无需跳转独立页面；勾选「仅看待审核申请」快速过滤 🆕 | P1 | ✅ |
 
 **拉黑与强制登出机制**：
 
@@ -388,7 +388,7 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 |------|------|---------|
 | 数据看板 | `Dashboard.tsx` | §3.3.2-1 |
 | 用户列表 / 详情 | `users/UserList.tsx`、`users/UserDetail.tsx` | §3.3.2 |
-| 会员申请审核 | `users/MemberApplicationList.tsx` | §3.3.2 |
+| ~~会员申请审核~~ | ~~`users/MemberApplicationList.tsx`~~ | **已合并入 `UserList.tsx`（🆕 v0.12.0）** |
 | 在线统计 | `stats/OnlineStats.tsx` | §3.3.2 |
 | 统计访问日志 | `stats/OnlineStats.tsx`（访问日志 tab） | §3.3.2-1 |
 | 审计日志 | `stats/AuditLogs.tsx` | §3.3.2 |
@@ -527,7 +527,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/users` | GET | 用户列表（分页），含在线状态和登录 IP | admin |
+| `/users` | GET | 用户列表（分页+筛选），含在线状态和登录 IP；支持 `keyword`（手机号）、`role` 筛选；`sort_by=created_at\|last_login`（默认 `created_at`）+ `sort_order=asc\|desc` 🆕 | admin |
 | `/users/{id}/role` | PUT | 修改用户角色 | admin |
 | `/users/{id}/blacklist` | POST | 拉黑用户并强制登出（加入黑名单 + token 失效） | admin |
 | `/users/{id}/unblacklist` | POST | 解除拉黑 | admin |
@@ -541,7 +541,7 @@ openIndu-backend/
 | `/stats/dashboard` | GET | 运营数据看板：总情况/实时访客/趋势/地图/标签使用统计（详见 §3.3.2-1）🆕 | admin |
 | `/stats/online` | GET | 当前在线登录用户数 + 地理位置分布 | admin |
 | `/stats/login-history` | GET | 登录历史记录（分页，支持 `keyword` 手机号 + `status` online/offline 筛选；手机号脱敏，时间返回 UTC ISO） | admin |
-| `/stats/visit-logs` | GET | 访问日志（匿名 + 已登录）：支持 `keyword` 手机号/IP、`authed=yes/no`、`include_local`、`include_unknown`；手机号脱敏，时间返回 UTC ISO | admin |
+| `/stats/visit-logs` | GET | 访问日志（匿名 + 已登录）：支持 `keyword` 手机号/IP、`authed=yes/no`、`include_local`、`include_unknown`；`sort_by=created_at`（默认）+ `sort_order=asc\|desc` 🆕；手机号脱敏，时间返回 UTC ISO | admin |
 
 #### 4.3.4-1 访客埋点模块 (`/api/v1/visits`) 🆕
 
@@ -553,7 +553,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/admin/audit-logs` | GET | 管理员操作审计日志（拉黑/解封/强制登出/改角色，手机号脱敏） | admin |
+| `/admin/audit-logs` | GET | 管理员操作审计日志（拉黑/解封/强制登出/改角色，手机号脱敏）；`sort_by=created_at`（默认）+ `sort_order=asc\|desc` 🆕 | admin |
 
 > 🆕 隐私保护：`/stats/login-history`（登录日志）与 `/admin/audit-logs`（审计日志）返回的手机号均做脱敏处理（`138****0000`，保留前 3 后 4 位）。脱敏在后端完成，完整手机号不出服务端；按手机号关键词搜索仍按完整号匹配，仅展示脱敏。
 
@@ -561,7 +561,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数 | 公开 |
+| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数；`sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
 | `/documents/upload` | POST | 上传 PDF（brand/category/series/description），后台异步触发 RAG 同步 | admin |
 | `/documents/brands/list` | GET | 文档品牌列表 | 公开 |
 | `/documents/categories/list` | GET | 文档分类列表 | 公开 |
@@ -608,7 +608,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/software` | GET | 软件列表（分页+筛选+`published_only`+`expand_versions`），含下载次数/大小/版本数 | 公开 |
+| `/software` | GET | 软件列表（分页+筛选+`published_only`+`expand_versions`），含下载次数/大小/版本数；`sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
 | `/software/upload` | POST | 同步上传软件包（小包，经后端流式中转） | admin |
 | `/software/upload/init` | POST | **直传 OSS 第一步**：校验并签发 presigned URL（single/multipart）+ 上传凭证 token 🆕 | admin |
 | `/software/upload/complete` | POST | **直传 OSS 第二步**：合并分片并落库（可带 `software_id` 给已有软件加版本）🆕 | admin |
@@ -943,7 +943,7 @@ sequenceDiagram
 |------|------|------|------|
 | `/member-applications` | POST | 提交会员申请（可附 note）；`pending` 状态下不允许重复申请；`rejected` 后可重新申请 | 登录（user/member/admin） |
 | `/member-applications/mine` | GET | 获取当前用户的申请状态（status/created_at）；从未申请返回 null | 登录 |
-| `/admin/member-applications` | GET | 管理员分页查看所有申请列表，支持 `status` 过滤（pending/approved/rejected），按 `created_at` 排序；手机号脱敏 | admin |
+| `/admin/member-applications` | GET | 管理员分页查看所有申请列表，支持 `status` 过滤（pending/approved/rejected）；`sort_by=created_at`（默认）+ `sort_order=asc\|desc` 🆕；手机号脱敏 | admin |
 | `/admin/member-applications/{user_id}/approve` | PUT | 批准申请：将目标用户 role 升为 `member`，记录审计日志（action=`member_approve`） | admin |
 | `/admin/member-applications/{user_id}/reject` | PUT | 驳回申请，记录审计日志（action=`member_reject`） | admin |
 
@@ -1612,4 +1612,5 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.9.2 | 2026-06-26 | **PV/UV 与同客户端多账号会话修正**（backend `0b29015` / admin `ad3939d` / portal `228670e`）：① `visit_events` 新增 `visitor_id` 与 `event_type=page_view`，Portal 埋点携带浏览器级 `visitor_id` 并对同路径 1 秒内重复埋点去重；② Dashboard 新增当前/今日/本月/累计 PV 与 UV 字段，PV=页面访问次数，UV=visitor_id 优先、历史数据按 IP fallback；③ `login_sessions` 新增 `client_id`，Portal/Admin API 请求统一携带 `X-OpenIndu-Client-Id`；④ 同一 client_id 切换账号时旧账号会话自动离线，但不同设备/浏览器即使同 IP 仍允许多个账号在线；⑤ logout 优先按 client_id 下线当前浏览器会话。 |
 | 0.9.3 | 2026-06-26 | **统一浏览器标识为 client_id + 法律披露 + Dashboard 布局**（backend `60ebc3b` / admin `9147096` / portal `16bf244`）：① 将 `visit_events.visitor_id` 重命名为 `client_id`（迁移 `20260626_rename_visitor_to_client`，保留历史行），`/visits/track` 改收 `client_id`，UV 改按 `client_id` 去重；Portal/Admin 统一只保留一个浏览器 `openindu_client_id`，同时服务 PV/UV 统计与登录会话；② Portal 下载中心列表上方新增版权说明（文档/软件版权归原作者/原厂商，平台仅提供检索与分发）；③ 隐私声明/法律声明/关于 Cookies 三页披露 `openindu_client_id` 本地存储项与第三方版权立场；④ Admin Dashboard「总情况」卡片改为 3+2 布局（UV/PV/会员 第一行，文档/软件 第二行）；⑤ 迁移 `20260626_add_visit_client_ids` 补删旧唯一约束 `uq_login_session_device`，修复 client_id 会话写入 UniqueViolation 静默失败。 |
 | 0.10.0 | 2026-06-28 | **📋 智能咨询 + 工程产物服务化立项（分期）**：① Portal 新增面向 member 的「智能咨询」右下角悬浮 RAG 问答（§2.2.7）与「工程产物服务」（§2.2.8，远期）；② 后端新增 `/api/v1/chat` SSE 流式问答模块（§4.3.12），复用 `milvus_service` 检索 + 内置 DeepSeek 生成，明确与 MCP 区分；新增 `/api/v1/studio` 工程产物任务模块（§4.3.13，分 Phase 2a 确定性产物 API / 2b 服务端 Agent）；③ 新增 `chat_logs`、`studio_jobs` 表与每日配额；④ 新增 `LLM_*` / `RAG_TOP_K` / `CHAT_DAILY_LIMIT` 配置、`openai` 依赖、LLM 外部依赖；⑤ 校正 Milvus 维度 768→1024 并对齐实际字段；⑥ 开发计划新增 Phase 7/8/9；⑦ 厘清 `openIndu-studio` 现状（纯 `converters` 引擎库、无 server/LLM、Claude Code 为大脑、单品牌 MVP），服务化采用分期路线。 |
+| 0.12.0 | 2026-06-30 | **代码对齐刷新**（基于 backend PRs #76/#77 / admin PRs #86/#87/#88/#89 / portal PRs #50–#53）：① 🆕 **列表排序参数**：`GET /documents`、`GET /software` 新增 `sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`，`desc`）；`GET /users` 新增 `sort_by=created_at\|last_login` + `role` 筛选；`GET /admin/member-applications`、`GET /admin/audit-logs`、`GET /stats/visit-logs` 新增 `sort_by=created_at` + `sort_order`（§4.3.3/4.3.4/4.3.4-2/4.3.5/4.3.6/4.3.12-1）；② 🆕 **会员申请管理合并**：`MemberApplicationList.tsx` 已合并入 `UserList.tsx`（无独立页面/路由），用户列表新增角色/申请状态筛选、内联通过/驳回按钮（§3.3.2/§3.4）；③ 法律/隐私更新（portal PRs #50–#53）：法律页面更新版权与数据采集披露，Portal 新增下载中心版权说明横幅，法律声明新增 `openindu_client_id` 存储项说明。 |
 | 0.11.0 | 2026-06-30 | **代码对齐刷新**（基于 backend `20260629` 迁移 / admin `20260629` / portal `ChatWidget` 最新）：① 🆕 **会员申请体系**（§3.3.2 + §4.3.12-1）：`user` 可在 Portal 个人中心或聊天 Widget 申请升级为 member，admin 在新增 `MemberApplicationList.tsx` 页面批准/驳回；申请状态字段合并入 `users` 表（`member_apply_status/note/at/reviewed_by`），审计日志扩展 `member_approve / member_reject` action；② ✅ **智能咨询落地**（§2.2.7 / §4.3.12，原📋变为✅）：`ChatWidget.tsx` 已实现全功能，包括右下角悬浮气泡、会员引导入口；③ 🆕 **对话会话持久化**（§4.3.12 扩展）：新增 `chat_sessions` / `chat_messages` 表及 CRUD API（GET/POST/PATCH/DELETE `/chat/sessions`，GET `/chat/sessions/{id}/messages`，POST `/chat/sessions/{id}/stream`）；会话模式自动从 DB 读取 history、自动落库 assistant 回复、首条消息自动命名会话；④ 🆕 **统一登录端点** `POST /auth/sign-in`（§4.3.1）；⑤ 🆕 补充配置项 `LLM_TEMPERATURE`（0.2）/ `LLM_MAX_TOKENS`（1024）；⑥ 🔔 `chat_logs` 状态由📋变为✅（随智能咨询落地）。 |

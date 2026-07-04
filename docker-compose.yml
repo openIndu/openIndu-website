@@ -67,12 +67,13 @@ services:
   web-api:
     build:
       context: ./openIndu-backend
-    runtime: nvidia
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
+              driver: nvidia
+              count: 1
     command: uvicorn app.web_app:app --host 0.0.0.0 --port 8004 --reload
     env_file: .env
     environment:

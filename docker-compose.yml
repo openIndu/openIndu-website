@@ -78,6 +78,7 @@ services:
     env_file: .env
     environment:
       - HF_HOME=/models/huggingface
+      - HF_HUB_OFFLINE=1
     ports:
       - "8004:8004"
     volumes:

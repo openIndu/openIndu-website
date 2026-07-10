@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.12.0 | 日期: 2026-06-30 | 状态: 草案
+> 版本: 0.13.0 | 日期: 2026-07-10 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -17,7 +17,7 @@ openIndu 平台由以下独立仓库组成：
 | [openIndu-admin](https://gitee.com/openIndu/openIndu-admin) | 统一管理后台（React） | 🆕 新建，从 `openIndu-studio/frontend` 重写（Vue → React） |
 | [openIndu-backend](https://gitee.com/openIndu/openIndu-backend) | REST API 服务 + MCP 服务（FastAPI） | 🆕 新建，从 `openIndu-studio/backend` 迁移 + 扩展 |
 
-> `openIndu-studio` 是早期原型仓库（Vue 3 前端 + FastAPI 后端），将在迁移完成后归档。
+> `openIndu-studio` 早期的 Vue 3 前端 + FastAPI 后端已分别迁出至 openIndu-portal/admin 与 openIndu-backend；仓库本身**保留并转型为「工程产物生成引擎 + AI Agent 工作流工具链」**（`converters/` 引擎、AutoCAD DWG 电路图生成等），现已作为 openIndu-website 的**活跃子模块**（第 4 个 submodule）持续开发，**不再归档**。其对外服务化能力见 §2.2.8 / §4.3.13。
 
 ---
 
@@ -140,6 +140,8 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 | 自动命名会话 | 首条消息前 30 字自动设为会话标题 | P2 | ✅ |
 | 范围筛选 | 可选按品牌/分类缩小检索范围（复用现有标签体系） | P2 | ✅ |
 | 配额提示 | 触发每日上限（429）时友好提示 | P2 | ✅ |
+| 答案反馈 | 每条助手回答下方 👍/👎 反馈，用于沉淀知识盲区（写入 `chat_messages.feedback`）🆕 | P2 | ✅ |
+| 非知识库兜底提示 | 检索无强相关命中时切换 fallback 模式，答案顶部展示「非平台知识库」提示条 🆕 | P2 | ✅ |
 | 会员申请引导 | `user` 角色在咨询面板内展示申请状态，支持直接发起申请（`POST /member-applications`） | P1 | ✅ |
 
 > 与 §2.2.4「AI Agent 工作流」（Claude Code 经 MCP 编排）的区别：智能咨询是**网页内嵌的轻量问答**，登录即用、无需安装 Claude Code；生成由后端内置 LLM 完成（见 §4.3.12 与 MCP 的对比说明）。
@@ -542,6 +544,7 @@ openIndu-backend/
 | `/stats/online` | GET | 当前在线登录用户数 + 地理位置分布 | admin |
 | `/stats/login-history` | GET | 登录历史记录（分页，支持 `keyword` 手机号 + `status` online/offline 筛选；手机号脱敏，时间返回 UTC ISO） | admin |
 | `/stats/visit-logs` | GET | 访问日志（匿名 + 已登录）：支持 `keyword` 手机号/IP、`authed=yes/no`、`include_local`、`include_unknown`；`sort_by=created_at`（默认）+ `sort_order=asc\|desc` 🆕；手机号脱敏，时间返回 UTC ISO | admin |
+| `/stats/chat/knowledge-gaps` | GET | 智能咨询知识盲区：被 👎 的助手回答（含其上一条用户提问）+ fallback（无检索命中）消息，供运营补充文档参考（`limit` 默认 50）🆕 | admin |
 
 #### 4.3.4-1 访客埋点模块 (`/api/v1/visits`) 🆕
 
@@ -561,7 +564,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数；`sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
+| `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数；`sort_by=file_size\|upload_time\|download_count\|brand`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
 | `/documents/upload` | POST | 上传 PDF（brand/category/series/description），后台异步触发 RAG 同步 | admin |
 | `/documents/brands/list` | GET | 文档品牌列表 | 公开 |
 | `/documents/categories/list` | GET | 文档分类列表 | 公开 |
@@ -608,7 +611,7 @@ openIndu-backend/
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
-| `/software` | GET | 软件列表（分页+筛选+`published_only`+`expand_versions`），含下载次数/大小/版本数；`sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
+| `/software` | GET | 软件列表（分页+筛选+`published_only`+`expand_versions`），含下载次数/大小/版本数；`sort_by=file_size\|upload_time\|download_count\|brand`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
 | `/software/upload` | POST | 同步上传软件包（小包，经后端流式中转） | admin |
 | `/software/upload/init` | POST | **直传 OSS 第一步**：校验并签发 presigned URL（single/multipart）+ 上传凭证 token 🆕 | admin |
 | `/software/upload/complete` | POST | **直传 OSS 第二步**：合并分片并落库（可带 `software_id` 给已有软件加版本）🆕 | admin |
@@ -891,6 +894,8 @@ sequenceDiagram
 | `/brand-mapping/address` | GET | 品牌地址映射 | 登录 |
 | `/brand-mapping/overview` | GET | 品牌概览 | 登录 |
 
+> 🆕 品牌映射数据现存于 `brand_mappings` 表（§4.6），由迁移脚本导入种子数据（已含 keyence / inovance 等）；同一份数据也支撑 §4.4 的 `get_brand_mapping` MCP 工具（源→目标品牌的 IO / 寄存器 / 定时器 / 通信 / 指令等对照）。
+
 #### 4.3.10 API 统一响应格式
 
 所有 API 端点使用统一的 JSON 响应格式：
@@ -983,6 +988,7 @@ sequenceDiagram
 | `/chat/sessions/{id}` | DELETE | 删除会话及其所有消息（CASCADE） | member | ✅ |
 | `/chat/sessions/{id}/messages` | GET | 加载会话历史消息列表（按 id 正序） | member | ✅ |
 | `/chat/sessions/{id}/stream` | POST | **会话模式** RAG 流式问答：自动加载 DB 最近 6 条消息作 history，answer 落库（`chat_messages`），更新 `chat_sessions.updated_at`；首条消息自动命名会话 | member | ✅ |
+| `/chat/sessions/{id}/messages/{mid}/feedback` | POST | 对某条**助手**回答点赞/点踩（body `{value: 1\|-1}`，写入 `chat_messages.feedback`；仅助手消息，value 非 1/-1 返回 400）🆕 | member | ✅ |
 
 **请求体**（`POST /chat`）：
 
@@ -1001,6 +1007,7 @@ sequenceDiagram
 
 ```
 event: sources   data: [{document_name, page, brand, category, score}]   ← 检索完成即下发
+event: mode      data: {"mode":"grounded"|"fallback"}                     ← 标示答案来源（知识库 / 通用兜底）🆕
 event: delta     data: {"text":"…"}                                       ← LLM token 流（多条）
 event: done      data: {"finish_reason":"stop","usage":{...}}
 event: error     data: {"detail":"…"}
@@ -1028,6 +1035,10 @@ member (Portal 聊天面板)        Web API :8004              Milvus :19530    
 - **System**：限定"只能依据【知识库片段】回答；不足以回答时明确说『未在知识库中找到相关资料，建议到下载中心查阅原始手册或换个问法』；严禁编造型号参数、接线、寄存器地址、版本号；中文作答，涉及参数/步骤时注明出自哪篇文档"。
 - **User**：`【知识库片段】\n[来源i]《文档名》p.页码\n<chunk text>…\n\n【用户问题】\n{message}`（用户问题作为数据，不覆盖 system，做基础 prompt 注入防护）。
 - `sources` 由检索结果元数据去重生成，前端渲染为可点击引用。
+
+**多轮检索改写**（检索质量，v0.13.0 🆕）：会话模式的追问常缺主语（如「数据寄存器地址呢？」）。检索前先经 `chat_service.rewrite_query()` 用 LLM 将「对话历史 + 最新消息」改写为**自包含查询**（如「三菱 FX3U 数据寄存器地址分配」）再交 BGE-M3 编码，避免向量漂移到别的品牌/系列；LLM 不可用或改写为空时降级为 `_enrich_query()`（拼接最近 3 轮上下文，各截 200 字）。改写调用极廉价（`temperature=0`、`max_tokens≤100`，通常 < 0.5s）。
+
+**双模式作答（grounded / fallback）**（v0.13.0 🆕）：`determine_mode()` 按检索 top-1 COSINE 相似度判定——≥ `0.7`（`_FALLBACK_SCORE_THRESHOLD`）为 **grounded**（严格依据片段作答、下发 `sources`）；无命中或 < 0.7 为 **fallback**（切换「通用工业知识」system prompt、`sources` 置空，仍严禁编造具体型号数字）。当前模式通过 `event: mode` 通知前端，fallback 时前端展示「非平台知识库」提示条。两种模式均把用户问题嵌在 user role、不覆盖 system（prompt 注入防护）。
 
 **成本 / 限流防刷**：member/admin 准入 + `CHAT_DAILY_LIMIT`（默认 30/天，admin 豁免，基于 `chat_logs` 当日计数，超限 429，复用 §4.3.6-1 下载限额范式）+ slowapi 按 IP 突发限流。
 
@@ -1230,6 +1241,17 @@ system_configs           # 系统业务参数配置（key-value）
 ├── description
 └── updated_at
 
+brand_mappings           # 品牌交叉映射（§4.3.9 / MCP get_brand_mapping）🆕
+├── id                   # 主键（BIGSERIAL）
+├── source_brand         # 源品牌 slug（如 mitsubishi）
+├── target_brand         # 目标品牌 slug（如 siemens）
+├── item_type            # 映射项类型：io / memory / timer / counter / communication / instruction
+├── source_value         # 源品牌取值（如 D 数据寄存器）
+├── target_value         # 目标品牌对应取值
+├── description          # 说明（可空）
+└── created_at
+# 索引 ix_brand_mapping_src_tgt (source_brand, target_brand)；迁移含 keyence/inovance 种子数据
+
 portal_contents          # 官网内容
 ├── section              # hero / solutions / carousel / benefits / footer / subpage
 ├── content              # JSON 数据
@@ -1283,6 +1305,7 @@ chat_messages             # 智能咨询消息（每轮 user/assistant 各一条
 ├── content               # 消息正文（TEXT，最长 4000 字 / user；assistant 无限）
 ├── sources               # assistant 消息引用的文档元数据（JSON，可空）
 ├── mode                  # 生成模式："grounded"（有检索支撑）| "fallback"（知识库无相关内容）
+├── feedback              # member 对助手回答的反馈：👍1 / 👎-1（NULL=未评价），供知识盲区分析 🆕
 └── created_at
 
 chat_logs                 # 智能咨询日志（每日配额计数 + 用量审计）✅
@@ -1612,5 +1635,6 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.9.2 | 2026-06-26 | **PV/UV 与同客户端多账号会话修正**（backend `0b29015` / admin `ad3939d` / portal `228670e`）：① `visit_events` 新增 `visitor_id` 与 `event_type=page_view`，Portal 埋点携带浏览器级 `visitor_id` 并对同路径 1 秒内重复埋点去重；② Dashboard 新增当前/今日/本月/累计 PV 与 UV 字段，PV=页面访问次数，UV=visitor_id 优先、历史数据按 IP fallback；③ `login_sessions` 新增 `client_id`，Portal/Admin API 请求统一携带 `X-OpenIndu-Client-Id`；④ 同一 client_id 切换账号时旧账号会话自动离线，但不同设备/浏览器即使同 IP 仍允许多个账号在线；⑤ logout 优先按 client_id 下线当前浏览器会话。 |
 | 0.9.3 | 2026-06-26 | **统一浏览器标识为 client_id + 法律披露 + Dashboard 布局**（backend `60ebc3b` / admin `9147096` / portal `16bf244`）：① 将 `visit_events.visitor_id` 重命名为 `client_id`（迁移 `20260626_rename_visitor_to_client`，保留历史行），`/visits/track` 改收 `client_id`，UV 改按 `client_id` 去重；Portal/Admin 统一只保留一个浏览器 `openindu_client_id`，同时服务 PV/UV 统计与登录会话；② Portal 下载中心列表上方新增版权说明（文档/软件版权归原作者/原厂商，平台仅提供检索与分发）；③ 隐私声明/法律声明/关于 Cookies 三页披露 `openindu_client_id` 本地存储项与第三方版权立场；④ Admin Dashboard「总情况」卡片改为 3+2 布局（UV/PV/会员 第一行，文档/软件 第二行）；⑤ 迁移 `20260626_add_visit_client_ids` 补删旧唯一约束 `uq_login_session_device`，修复 client_id 会话写入 UniqueViolation 静默失败。 |
 | 0.10.0 | 2026-06-28 | **📋 智能咨询 + 工程产物服务化立项（分期）**：① Portal 新增面向 member 的「智能咨询」右下角悬浮 RAG 问答（§2.2.7）与「工程产物服务」（§2.2.8，远期）；② 后端新增 `/api/v1/chat` SSE 流式问答模块（§4.3.12），复用 `milvus_service` 检索 + 内置 DeepSeek 生成，明确与 MCP 区分；新增 `/api/v1/studio` 工程产物任务模块（§4.3.13，分 Phase 2a 确定性产物 API / 2b 服务端 Agent）；③ 新增 `chat_logs`、`studio_jobs` 表与每日配额；④ 新增 `LLM_*` / `RAG_TOP_K` / `CHAT_DAILY_LIMIT` 配置、`openai` 依赖、LLM 外部依赖；⑤ 校正 Milvus 维度 768→1024 并对齐实际字段；⑥ 开发计划新增 Phase 7/8/9；⑦ 厘清 `openIndu-studio` 现状（纯 `converters` 引擎库、无 server/LLM、Claude Code 为大脑、单品牌 MVP），服务化采用分期路线。 |
-| 0.12.0 | 2026-06-30 | **代码对齐刷新**（基于 backend PRs #76/#77 / admin PRs #86/#87/#88/#89 / portal PRs #50–#53）：① 🆕 **列表排序参数**：`GET /documents`、`GET /software` 新增 `sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`，`desc`）；`GET /users` 新增 `sort_by=created_at\|last_login` + `role` 筛选；`GET /admin/member-applications`、`GET /admin/audit-logs`、`GET /stats/visit-logs` 新增 `sort_by=created_at` + `sort_order`（§4.3.3/4.3.4/4.3.4-2/4.3.5/4.3.6/4.3.12-1）；② 🆕 **会员申请管理合并**：`MemberApplicationList.tsx` 已合并入 `UserList.tsx`（无独立页面/路由），用户列表新增角色/申请状态筛选、内联通过/驳回按钮（§3.3.2/§3.4）；③ 法律/隐私更新（portal PRs #50–#53）：法律页面更新版权与数据采集披露，Portal 新增下载中心版权说明横幅，法律声明新增 `openindu_client_id` 存储项说明。 |
 | 0.11.0 | 2026-06-30 | **代码对齐刷新**（基于 backend `20260629` 迁移 / admin `20260629` / portal `ChatWidget` 最新）：① 🆕 **会员申请体系**（§3.3.2 + §4.3.12-1）：`user` 可在 Portal 个人中心或聊天 Widget 申请升级为 member，admin 在新增 `MemberApplicationList.tsx` 页面批准/驳回；申请状态字段合并入 `users` 表（`member_apply_status/note/at/reviewed_by`），审计日志扩展 `member_approve / member_reject` action；② ✅ **智能咨询落地**（§2.2.7 / §4.3.12，原📋变为✅）：`ChatWidget.tsx` 已实现全功能，包括右下角悬浮气泡、会员引导入口；③ 🆕 **对话会话持久化**（§4.3.12 扩展）：新增 `chat_sessions` / `chat_messages` 表及 CRUD API（GET/POST/PATCH/DELETE `/chat/sessions`，GET `/chat/sessions/{id}/messages`，POST `/chat/sessions/{id}/stream`）；会话模式自动从 DB 读取 history、自动落库 assistant 回复、首条消息自动命名会话；④ 🆕 **统一登录端点** `POST /auth/sign-in`（§4.3.1）；⑤ 🆕 补充配置项 `LLM_TEMPERATURE`（0.2）/ `LLM_MAX_TOKENS`（1024）；⑥ 🔔 `chat_logs` 状态由📋变为✅（随智能咨询落地）。 |
+| 0.12.0 | 2026-06-30 | **代码对齐刷新**（基于 backend PRs #76/#77 / admin PRs #86/#87/#88/#89 / portal PRs #50–#53）：① 🆕 **列表排序参数**：`GET /documents`、`GET /software` 新增 `sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`，`desc`）；`GET /users` 新增 `sort_by=created_at\|last_login` + `role` 筛选；`GET /admin/member-applications`、`GET /admin/audit-logs`、`GET /stats/visit-logs` 新增 `sort_by=created_at` + `sort_order`（§4.3.3/4.3.4/4.3.4-2/4.3.5/4.3.6/4.3.12-1）；② 🆕 **会员申请管理合并**：`MemberApplicationList.tsx` 已合并入 `UserList.tsx`（无独立页面/路由），用户列表新增角色/申请状态筛选、内联通过/驳回按钮（§3.3.2/§3.4）；③ 法律/隐私更新（portal PRs #50–#53）：法律页面更新版权与数据采集披露，Portal 新增下载中心版权说明横幅，法律声明新增 `openindu_client_id` 存储项说明。 |
+| 0.13.0 | 2026-07-10 | **代码对齐刷新**（基于 backend PRs #81/#83/#84/#92/#94/#95 / portal #69/#71 / admin 移动端）：① 🆕 **多轮检索改写**（§4.3.12）：会话追问先经 LLM `rewrite_query()` 改写为自包含查询（降级 `_enrich_query()` 拼接最近 3 轮），修复跨轮品牌/系列向量漂移；② 🆕 **答案反馈**（§2.2.7 / §4.3.12）：`chat_messages.feedback`（👍1/👎-1）+ `POST /chat/sessions/{id}/messages/{mid}/feedback`；新增 `GET /stats/chat/knowledge-gaps`（§4.3.4）汇总 👎 与 fallback 消息定位知识盲区；③ 🆕 **双模式作答显式化**（§4.3.12）：grounded/fallback 按检索 top-1 相似度 `0.7` 阈值切换，SSE 新增 `event: mode`，fallback 用通用工业知识 system prompt 并前端提示「非平台知识库」；④ 🆕 **品牌映射 DB 化**（§4.3.9 / §4.6）：新增 `brand_mappings` 表 + 种子数据（keyence/inovance），支撑 REST 与 `get_brand_mapping` MCP 工具；⑤ 🆕 `GET /documents`、`GET /software` 排序新增 `sort_by=brand`（§4.3.5/§4.3.6）；⑥ 📌 厘清 `openIndu-studio` 现状（§0）：前后端已迁出，仓库保留为工程产物引擎 + AI 工作流工具链、现为 openIndu-website 活跃子模块（含 AutoCAD DWG 电路图生成），不再归档；⑦ portal/admin 移动端响应式适配、聊天 401 token 刷新修复。 |

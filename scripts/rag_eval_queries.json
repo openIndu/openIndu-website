@@ -1,0 +1,31 @@
+{
+  "_comment": "RAG 检索黄金测试集。positive_cases 的 query 由真实文档标题反推构造——检索应命中 expected_document_contains 子串且 top-1 score 应 >= grounded 阈值(0.7)。negative_cases 覆盖已知 0 文档的分类，检索应正确 fallback（验证阈值不会误判）。新增文档后可追加用例，脚本本身无需修改。",
+  "positive_cases": [
+    {"id": "mitsubishi-driver", "brand": "mitsubishi", "category": "driver-manual", "query": "三菱 MR-J4 伺服放大器和电机怎么接线", "expected_document_contains": "MR-J4伺服放大器和電機"},
+    {"id": "mitsubishi-plc", "brand": "mitsubishi", "category": "plc-manual", "query": "三菱 KV75 PLC 说明", "expected_document_contains": "KV75", "note": "跨品牌混淆检测：KV 是基恩士型号前缀，此处故意用错误品牌名测试是否会误检索到基恩士文档"},
+    {"id": "omron-driver", "brand": "omron", "category": "driver-manual", "query": "欧姆龙 G5 伺服驱动器手册", "expected_document_contains": "G5"},
+    {"id": "siemens-plc", "brand": "siemens", "category": "plc-manual", "query": "西门子 S7-1200 入门指南怎么用", "expected_document_contains": "S7-1200"},
+    {"id": "siemens-driver", "brand": "siemens", "category": "driver-manual", "query": "西门子 SINAMICS S200 变频器样本", "expected_document_contains": "SINAMICS S200"},
+    {"id": "fuji-hmi", "brand": "fuji", "category": "hmi-manual", "query": "富士 V8 触摸屏产品手册", "expected_document_contains": "V8"},
+    {"id": "fuji-hardware", "brand": "fuji", "category": "hardware-manual", "query": "富士 FCH259 以太网通信模块", "expected_document_contains": "FCH259"},
+    {"id": "delta-plc", "brand": "delta", "category": "plc-manual", "query": "台达 AH500 硬件手册", "expected_document_contains": "AH500硬件"},
+    {"id": "delta-driver", "brand": "delta", "category": "driver-manual", "query": "台达 M 系列变频器说明书", "expected_document_contains": "M系列变频器"},
+    {"id": "ckd-driver", "brand": "ckd", "category": "driver-manual", "query": "CKD TS 型驱动器说明", "expected_document_contains": "TS型驱动器"},
+    {"id": "keyence-plc", "brand": "keyence", "category": "plc-manual", "query": "基恩士 KV-X 系列新一代 PLC 介绍", "expected_document_contains": "KV-X系列"},
+    {"id": "cognex-hardware", "brand": "cognex", "category": "hardware-manual", "query": "康耐视二维读码器选型", "expected_document_contains": "二維讀碼器"},
+    {"id": "nachi-robot", "brand": "nachi", "category": "robot-manual", "query": "不二越机器人 CC-Link 通讯配置", "expected_document_contains": "CClink"},
+    {"id": "inovance-driver-sv680", "brand": "inovance", "category": "driver-manual", "query": "汇川 SV680 系列驱动器支持 EtherCAT 总线吗", "expected_document_contains": "SV680", "note": "历史真实失败案例(07-01)——当时汇川无驱动器手册导致fallback；07-05后已补充SV680/SV630文档，此用例验证内容缺口是否已修复"},
+    {"id": "panasonic-driver", "brand": "panasonic", "category": "driver-manual", "query": "松下交流伺服马达使用说明书", "expected_document_contains": "交流伺服马达"},
+    {"id": "oriental-motor-driver", "brand": "oriental-motor", "category": "driver-manual", "query": "东方马达 AZ 系列功能介绍", "expected_document_contains": "AZ系列功能"},
+    {"id": "beckhoff-plc", "brand": "beckhoff", "category": "plc-manual", "query": "倍福 PLC 产品选型手册", "expected_document_contains": "選型"},
+    {"id": "akribis-driver", "brand": "akribis", "category": "driver-manual", "query": "Akribis 驱动器手册", "expected_document_contains": "驱动器手册"},
+    {"id": "abb-plc", "brand": "abb", "category": "plc-manual", "query": "ABB 机器人编程手册", "expected_document_contains": "机器人编程手册"},
+    {"id": "xinje-plc", "brand": "xinje", "category": "plc-manual", "query": "信捷可编程控制器说明", "expected_document_contains": "可编程控制器"},
+    {"id": "hokuyo-other", "brand": "hokuyo", "category": "other", "query": "北阳传感器选型目录", "expected_document_contains": "选型目录"}
+  ],
+  "negative_cases": [
+    {"id": "neg-electrical-standard", "query": "工业自动化电气设计规范标准是什么", "note": "electrical-standard 分类当前 0 篇文档，应 fallback"},
+    {"id": "neg-best-practice", "query": "PLC 项目开发的最佳实践指南", "note": "best-practice 分类当前 0 篇文档，应 fallback"},
+    {"id": "neg-unrelated", "query": "今天北京天气怎么样", "note": "与工业自动化完全无关，应 fallback 且 top-1 score 应很低"}
+  ]
+}

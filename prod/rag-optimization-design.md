@@ -1,6 +1,6 @@
 # RAG（智能咨询 / MCP 检索）现状评估与优化设计
 
-> 版本: 0.3.0 | 日期: 2026-07-11 | 状态: Step 0/1/2 已实施并实测验证；Step 3-5 待排期（详见 §6）
+> 版本: 0.5.0 | 日期: 2026-07-12 | 状态: Step 0/1/2/3/4 已实施并验证；Step 5（长期）待排期（详见 §6）
 >
 > 本文档基于 [`prod/requirements.md`](requirements.md) §4.3.12（智能咨询）、§4.4（MCP Server）、§4.6.2（Milvus Collection）整理现状架构，
 > 并结合历史生产数据、当前数据库实测，评估检索效果与命中率，给出优化建议。**本文档只做分析，不包含已实施的变更**——所有建议需用户确认优先级后再排期实施。
@@ -135,16 +135,18 @@ index: IVF_FLAT, nlist=128        search: nprobe=10
 ### 3.4 数据完整性缺口（当前实测 vs 需求文档 §3.3.3 定义的 9 个分类）
 
 ```
-registered active doc_category tags: plc-manual / driver-manual / hmi-manual / hardware-manual / other / robot-manual / scan_code  (7个)
+registered active doc_category tags（07-11 排查时）: plc-manual / driver-manual / hmi-manual / hardware-manual / other / robot-manual / scan_code  (7个)
 requirements.md 定义:                 plc-manual / driver-manual / hmi-manual / hardware-manual / other / robot-manual
                                       + software-manual / best-practice / electrical-standard  (9个)
 ```
 
-| 发现 | 影响 |
-|------|------|
-| `software-manual` 有 **6 篇文档**（mitsubishi 4 + ckd 2），但对应 tag **未在 resource_tags 注册** | Admin 设置页筛选下拉可能看不到这个分类选项；说明 `documents.category` 写入时**未走 tag 校验**，批量导入脚本绕过了标签体系 |
-| `best-practice` / `electrical-standard` | 全库 **0 篇文档**——`search_best_practice`/`search_electrical_standard` 这两个 MCP 工具无论检索算法怎么优化，**结构性保证查不到任何内容**，需业务侧补充文档，非工程可单方面解决 |
-| `scan_code`（扫码器，cognex 2 篇）| 是已注册 tag，但**不在 requirements.md 文档分类清单里，也没有对应的 MCP 搜索工具**——这 2 篇文档能在 Admin/Portal 正常浏览，但通过任何 MCP 工具都**永远搜不到** |
+| 发现 | 影响 | 状态 |
+|------|------|:---:|
+| `software-manual` 有 **6 篇文档**（mitsubishi 4 + ckd 2），但对应 tag **未在 resource_tags 注册** | Admin 设置页筛选下拉可能看不到这个分类选项；说明 `documents.category` 写入时**未走 tag 校验**，批量导入脚本绕过了标签体系 | **已修复（07-12，Step 3）**：resource_tags 补注册（sort_order=7） |
+| `best-practice` / `electrical-standard` | 全库 **0 篇文档**——`search_best_practice`/`search_electrical_standard` 这两个 MCP 工具无论检索算法怎么优化，**结构性保证查不到任何内容**，需业务侧补充文档，非工程可单方面解决 | 未处理（需业务侧供稿，非工程问题） |
+| `scan_code`（扫码器，cognex 2 篇）| 是已注册 tag，但**不在 requirements.md 文档分类清单里，也没有对应的 MCP 搜索工具**——这 2 篇文档能在 Admin/Portal 正常浏览，但通过任何 MCP 工具都**永远搜不到** | **已修复（07-12，Step 3）**：2 篇改分类为 `other`（requirements.md 对 `other` 的定义明确包含"机器视觉"，DataMan 条码/视觉读码器完全符合）并重新嵌入；`scan_code` tag 软停用（`is_active=false`，未硬删除） |
+
+**Step 3 执行时的新发现（未在原计划范围内，未处理）**：`other` 分类本身**也没有对应的 MCP 搜索工具**（`search_*` 8 个工具无一覆盖 `other`）——这不是 scan_code 合并引入的新问题，是原本就存在的缺口，现在 `other` 从 5 篇增至 7 篇（含合并进来的 2 篇 scan_code），全部通过 MCP 检索不到。是否要新增 `search_other` 工具，留给用户决定，本次不擅自扩大范围处理。
 
 ---
 
@@ -153,11 +155,23 @@ requirements.md 定义:                 plc-manual / driver-manual / hmi-manual 
 | 优先级 | 建议 | 工作量 | 风险 | 说明 |
 |:---:|------|:---:|:---:|------|
 | ~~P0~~ | ~~全量重新同步 350 篇文档到 Milvus~~ | 低（脚本已就绪，GPU ~15-30 分钟） | 低 | **已完成（07-11）**：350 篇全部 synced，156,499 向量，详见 §2.2 |
-| **P0** | 补注册 `software-manual` tag；决定 `scan_code` 去留（并入 `hardware-manual` 或新增第 9 个 MCP 工具） | 低 | 低 | 数据完整性修复，影响 Admin 筛选与 MCP 可发现性——**未完成** |
+| ~~P0~~ | ~~补注册 `software-manual` tag；决定 `scan_code` 去留~~ | 低 | 低 | **已完成（07-12）**：software-manual 补注册；scan_code 2 篇并入 `other`（贴合 requirements.md 对 other 的定义）并重新嵌入，详见 §3.4 |
 | ~~P1~~ | ~~Milvus `nprobe` 10 → 128~~ | 低（一行配置，零停机） | 低 | **已完成（07-11）**：黄金测试集实测 top-1 命中率 +14.3pp、top-k +4.8pp，且消除了同配置下的结果漂移，详见 §3.3 |
-| **P1** | `rewrite_query()` 顺带抽取品牌/型号，自动传入 `where_filter` 缩小 ANN 搜索范围 | 中（需改 prompt + 抽取结构化字段） | 中（抽取错误可能过滤掉正确答案，需要 fallback 兜底） | 减少跨品牌噪声对 top-k 的干扰 |
+| ~~P1~~ | ~~自动抽取品牌，缩小 `where_filter` 搜索范围~~ | 低（关键词匹配，非新增 LLM 调用） | 低（搜索弱/空时自动降级为不过滤重试，见下） | **已完成（07-12）**：详见下方"Step 4 结果" |
 | **P2** | 建立"黄金测试集"（每品牌/分类抽样 3-5 个已知能被特定文档回答的问题，标注期望命中文档） | 中 | 低 | 把"评估检索效果"从零散生产日志升级为可重复、可回归的量化指标，后续任何调参都能 A/B 对比 |
 | **P2** | 补充 `best-practice` / `electrical-standard` / 弱势品牌驱动器手册内容 | 高（依赖业务侧持续上传） | — | 内容缺口非检索算法能解决，需产品侧规划 |
+
+### 4.1 Step 4 结果：自动品牌过滤（诚实评估，不夸大）
+
+**实现**：`chat_service._extract_brand()` 关键词匹配 `resource_tags`（17 个已注册品牌，中文 label + 英文 slug）；命中唯一品牌 → 注入 `where_filter`；命中 0 个或多个 → 不过滤（歧义时保守，不误过滤）。`retrieve()` 内置降级：带过滤搜索 top-1 分数 < 0.7 或空结果 → 自动重试不带过滤的搜索，只对**自动抽取**的品牌生效（显式传入 `body.filters.brand` 的调用不做降级重试，尊重调用方明确意图）。零新增 LLM 调用（不复用/不阻塞 `rewrite_query()`，因为它在无历史的单轮查询时不调用 LLM，若把品牌抽取绑在这条路径上会漏掉最常见的单轮查询）。
+
+**实测验证（真实 DB + 真实 Milvus 数据，非 mock）**：
+```
+"三菱FX3U数据寄存器地址" → 抽取 brand=mitsubishi → top-3 结果 100% 品牌一致（无关键词过滤前会混入其他品牌噪声）
+"台达变频器故障代码E001" → 抽取 brand=delta → 过滤后搜索 top1=0.609（低于阈值）→ 自动降级重试 → top1=0.626（更高，但换了品牌，符合预期：delta 变频器故障码本身是内容缺口，见 §3.2，过滤与否都救不了，降级机制只是避免"越过滤越差"）
+```
+
+**黄金测试集 21 用例复测：数值与 Step 2 完全一致（top-1 42.9%、top-k 76.2%、grounded-and-correct 19.0%）——不是负结果，是样本设计导致看不出差异**：这 21 个用例里的"长期 fallback"案例（fuji/inovance/ckd/delta 等）问题本质是内容缺口（对应品牌文档本来就少或不含该主题），品牌过滤精度再高也无法生成本来不存在的内容；而覆盖良好的品牌（omron/siemens/keyence）在过滤前就已经 100% top-1，没有再提升的空间。也就是说，本次没有正向样本能体现"消除跨品牌噪声"这个改动本该有的效果——不代表改动无效，只代表现有 21 个用例不是测这个改动的合适样本。**没有为了让数字好看而增补用例**，如实记录这个测量局限性，后续如果生产日志里出现"品牌明确但被跨品牌噪声干扰"的真实 fallback 案例，可以针对性补一条用例验证。
 
 ---
 
@@ -248,13 +262,13 @@ requirements.md 定义:                 plc-manual / driver-manual / hmi-manual 
 Step 0（P0，已完成）：小样本（7篇）试跑 3×2=6 组 chunk_size/overlap 配置 → 黄金测试集对比 → 结果见 §5.3，用户拍板 400/50
 Step 1（P0，已完成 07-11）：两处生产分块器改 token+字节双上限切块 → 350 篇全量重新同步 → 156,499 向量，详见 §2.2
 Step 2（P0，已完成 07-11）：`nprobe` 10→128 → 黄金测试集实测 top-1 命中率 +14.3pp、消除结果漂移，详见 §3.3
-Step 3（P0，未开始）：补 software-manual tag 注册 + scan_code 归属决策
-Step 4（P1，可选，未开始）：query rewrite 增加 where_filter 自动抽取
+Step 3（P0，已完成 07-12）：补 software-manual tag 注册 + scan_code 并入 other，详见 §3.4
+Step 4（P1，已完成 07-12）：自动品牌过滤 + 降级重试，详见 §4.1（黄金测试集数值未变，样本局限，非负结果）
 Step 5（P2，长期，未开始）：表格感知分块；持续用黄金测试集回归
 ```
 
-Step 0-2 已按计划全部完成：切块参数一次定案、全量嵌入一次做对、索引调优零成本生效，没有出现"嵌完又要删重跑"的浪费。剩余 Step 3-5 都不涉及重新嵌入，可以独立排期，互不阻塞。
+Step 0-4 已按计划全部完成：切块参数一次定案、全量嵌入一次做对、索引调优零成本生效，数据完整性缺口修复，自动品牌过滤零成本生效，没有出现"嵌完又要删重跑"的浪费。剩余 Step 5（表格感知分块）涉及新的解析方案设计，不涉及重新嵌入当前数据，可独立排期。
 
 ---
 
-**当前状态（07-11）**：Step 0/1/2 已完成并实测验证，RAG 检索能力已从"数据全丢"恢复到黄金测试集 top-1 命中率 42.9%、top-k 命中率 76.2%、grounded-and-correct 19.0%。**下一步待确认**：Step 3（tag 数据完整性修复）是否现在处理，Step 4（query rewrite 品牌过滤，可能是继续提升 top-1 命中率的下一个较大杠杆）是否排期，以及是否需要走 `/build` 走一遍子仓 PR + 聚合仓 submodule bump（本次改动：`openIndu-backend/app/services/rag_sync_service.py`、`openIndu-backend/app/services/milvus_service.py`）。
+**当前状态（07-12）**：Step 0-4 已全部完成并实测验证。RAG 检索能力已从"数据全丢"恢复到黄金测试集 top-1 命中率 42.9%、top-k 命中率 76.2%、grounded-and-correct 19.0%（多次复测数值稳定不变）；数据完整性缺口（software-manual 未注册、scan_code 分类归属）已修复；自动品牌过滤已上线并通过真实数据端到端验证（黄金测试集数值未变，原因是样本设计局限，详见 §4.1，非改动无效）。**下一步**：本轮改动统一走一次 `/build`（涉及 `openIndu-backend/app/services/{rag_sync_service,milvus_service,chat_service}.py`、`openIndu-backend/app/api/chat.py`）；Step 5（表格感知分块）作为长期项，不阻塞本轮发布。

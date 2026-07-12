@@ -39,11 +39,20 @@ def load_queries() -> dict:
 
 
 def run_case(query: str, top_k: int = 5) -> dict:
-    """Run one query through the real production retrieval path."""
-    from app.services.milvus_service import milvus_service
-    from app.services.chat_service import determine_mode
+    """Run one query through the real production retrieval path.
 
-    chunks = milvus_service.search(query, top_k=top_k)
+    Goes through chat_service.retrieve() (not milvus_service.search() directly)
+    so this harness also exercises auto brand-filter extraction — otherwise it
+    would silently drift from what production actually does on every call.
+    """
+    from app.core.database import SessionLocal
+    from app.services.chat_service import determine_mode, retrieve
+
+    db = SessionLocal()
+    try:
+        chunks = retrieve(db, query, top_k=top_k)
+    finally:
+        db.close()
     mode = determine_mode(chunks)
     top1 = chunks[0] if chunks else None
     return {

@@ -39,6 +39,15 @@ import threading
 import time
 from pathlib import Path
 
+# Windows consoles/pipes default stdout to the system codepage (GBK on
+# zh-CN Windows), not UTF-8. Document names/error text occasionally contain
+# characters outside GBK (e.g. the "fi" ligature U+FB01 in English-titled
+# manuals) — printing one without this crashes the whole run mid-corpus with
+# UnicodeEncodeError. Force UTF-8 with replacement so no single document's
+# text can ever kill an otherwise-successful 350-document run.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = REPO_ROOT / ".env"
 # Point HuggingFace at the cache the docker-compose web-api bind-mounts
@@ -53,8 +62,19 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 DOC_TIMEOUT_SECONDS = int(os.environ.get("DOC_TIMEOUT_SECONDS", "600"))
 # Chunking parameters — MUST match app.services.rag_sync_service.sync_document
 # so offline-produced vectors are indistinguishable from scheduler-produced ones.
-CHUNK_SIZE = 512
-CHUNK_OVERLAP = 50
+# Token-based (via the real BGE-M3 tokenizer), not char-based — see
+# prod/rag-optimization-design.md §5 for the industry-guidance research and the
+# scripts/rag_chunk_pilot.py empirical comparison behind these two numbers.
+CHUNK_SIZE_TOKENS = 400
+CHUNK_OVERLAP_TOKENS = 50
+# Milvus's `text` VARCHAR(2048) is enforced in UTF-8 BYTES by pymilvus, not
+# characters — token count alone doesn't bound this: parameter/register
+# tables (common in these PLC manuals) tokenize very efficiently (many chars
+# per token), so a token-budget-only chunk can balloon past the byte limit
+# well before it hits the token cap. Cap by BOTH; whichever is hit first ends
+# the chunk. Margin under 2048 leaves room for the odd multi-byte char at the
+# boundary that a byte-exact cap could still trip.
+CHUNK_MAX_BYTES = 2000
 ENCODE_BATCH_SIZE = int(os.environ.get("ENCODE_BATCH_SIZE", "32"))
 
 
@@ -81,7 +101,11 @@ OSS_BUCKET = CFG["OSS_BUCKET"]
 OSS_REGION = CFG["OSS_REGION"]
 OSS_KEY_ID = CFG["OSS_ACCESS_KEY_ID"]
 OSS_KEY_SECRET = CFG["OSS_ACCESS_KEY_SECRET"]
-MILVUS_HOST = CFG["MILVUS_HOST"]
+# MILVUS_HOST env var (process env, not .env file) overrides the .env value —
+# lets this run from the host against the docker-compose-mapped localhost:19530
+# without editing the shared .env (which must keep the in-network "milvus"
+# hostname for the containers themselves).
+MILVUS_HOST = os.environ.get("MILVUS_HOST") or CFG["MILVUS_HOST"]
 MILVUS_PORT = int(CFG.get("MILVUS_PORT", "19530"))
 MILVUS_COLLECTION = CFG.get("MILVUS_COLLECTION", "controller_knowledge")
 
@@ -157,26 +181,86 @@ def model():
 # --------------------------------------------------------------------------- #
 # Core: download → parse → chunk → encode → insert (mirrors sync_document)
 # --------------------------------------------------------------------------- #
-def chunk_pages(pages_text: list[dict]) -> list[dict]:
-    """Paragraph-merge chunking with overlap — identical to sync_document."""
+def tail_by_tokens(text: str, tokenizer, target_tokens: int) -> str:
+    """Longest suffix of `text` whose token count doesn't exceed target_tokens."""
+    if target_tokens <= 0 or not text:
+        return ""
+    lo, hi, best = 0, len(text), ""
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        suffix = text[-mid:] if mid > 0 else ""
+        n = len(tokenizer.encode(suffix)) if suffix else 0
+        if n <= target_tokens:
+            best = suffix
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return best
+
+
+def _fits_bytes(s: str, max_bytes: int) -> bool:
+    return len(s.encode("utf-8")) <= max_bytes
+
+
+def _explode_oversized(paragraphs: list[str], max_bytes: int) -> list[str]:
+    """Hard-split any single paragraph whose byte length alone exceeds max_bytes.
+
+    Rare: PDF text extraction occasionally yields one very long unbroken line
+    (e.g. a wide parameter-table row with no internal newline). Doing this
+    up front guarantees every paragraph handed to the merge loop below is
+    individually safe, so the loop only has to worry about merge-time overflow.
+    """
+    out = []
+    for p in paragraphs:
+        text = p
+        while not _fits_bytes(text, max_bytes):
+            lo, hi, cut = 1, len(text), 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                if _fits_bytes(text[:mid], max_bytes):
+                    cut = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            out.append(text[:cut])
+            text = text[cut:]
+        if text:
+            out.append(text)
+    return out
+
+
+def chunk_pages(pages_text: list[dict], tokenizer) -> list[dict]:
+    """Paragraph-merge chunking sized by real token count — identical to sync_document.
+
+    Bounded by BOTH token count (semantic sizing) and CHUNK_MAX_BYTES (safety
+    net against Milvus's byte-counted VARCHAR limit — see CHUNK_MAX_BYTES above).
+    """
     chunks: list[dict] = []
     chunk_id = 0
     for page_info in pages_text:
         text = page_info["text"]
         page = page_info["page"]
         paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
-        current_chunk = ""
+        paragraphs = _explode_oversized(paragraphs, CHUNK_MAX_BYTES)
+        current_chunk, current_tokens = "", 0
         for para in paragraphs:
-            if len(current_chunk) + len(para) + 1 <= CHUNK_SIZE:
-                current_chunk = (current_chunk + " " + para).strip() if current_chunk else para
+            para_tokens = len(tokenizer.encode(para))
+            candidate = (current_chunk + " " + para).strip() if current_chunk else para
+            if current_tokens + para_tokens <= CHUNK_SIZE_TOKENS and _fits_bytes(candidate, CHUNK_MAX_BYTES):
+                current_chunk = candidate
+                current_tokens += para_tokens
             else:
                 if current_chunk:
                     chunks.append({"text": current_chunk, "page": page, "chunk_id": chunk_id})
                     chunk_id += 1
-                    overlap_text = current_chunk[-CHUNK_OVERLAP:] if len(current_chunk) > CHUNK_OVERLAP else ""
-                    current_chunk = (overlap_text + " " + para).strip() if overlap_text else para
+                    overlap_text = tail_by_tokens(current_chunk, tokenizer, CHUNK_OVERLAP_TOKENS)
+                    new_start = (overlap_text + " " + para).strip() if overlap_text else para
+                    if not _fits_bytes(new_start, CHUNK_MAX_BYTES):
+                        new_start = para  # drop overlap rather than risk overflow — overlap has ~zero measured benefit anyway (design doc §5.3)
+                    current_chunk = new_start
+                    current_tokens = len(tokenizer.encode(current_chunk))
                 else:
-                    current_chunk = para
+                    current_chunk, current_tokens = para, para_tokens
         if current_chunk:
             chunks.append({"text": current_chunk, "page": page, "chunk_id": chunk_id})
             chunk_id += 1
@@ -206,8 +290,8 @@ def embed_one(doc: dict, collection) -> int:
     if not pages_text:
         return 0  # nothing extractable — not a failure
 
-    # 3. Chunk.
-    chunks = chunk_pages(pages_text)
+    # 3. Chunk (token-based via the real BGE-M3 tokenizer — see CHUNK_SIZE_TOKENS above).
+    chunks = chunk_pages(pages_text, model().tokenizer)
     if not chunks:
         return 0
 

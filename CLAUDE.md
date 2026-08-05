@@ -77,7 +77,7 @@ openIndu-website/
 ├── .claude/
 │   ├── settings.json                 # Hooks 配置（防 push main + lint + docker volume 保护）+ control-tower 插件引用
 │   ├── commands/                     # 仓库特有命令
-│   │   └── build.md                  # /build：镜像构建 + infra-deploy Gitee PR（RULE 11 步骤 ④+⑤）
+│   │   └── release.md                # /release：镜像构建 + infra-deploy Gitee PR（RULE 11 步骤 ④+⑤）
 │   └── governance/
 │       ├── development-workflow.md   # 开发工作流
 │       └── README.md                 # 治理体系说明
@@ -88,9 +88,11 @@ openIndu-website/
 └── .gitmodules
 ```
 
-> **`/build` 命名冲突提示**：control-tower 插件也提供 `/build` skill，但只覆盖 RULE 11 步骤 ④（构建 + 推送 Aliyun CR），
-> 明确不做 infra-deploy PR。本仓 `.claude/commands/build.md` 覆盖 ④+⑤（构建推送 + infra-deploy Gitee PR 改 tag），
-> 是插件版的超集，因此保留。本仓内使用 `/build` 时以仓库版为准。
+> **发布命令用 `/release`，不要用 `/build`**：本仓 `.claude/commands/release.md` 覆盖 RULE 11 步骤 ④+⑤
+> （构建推送 Aliyun CR + infra-deploy Gitee PR 改 tag）。control-tower 插件另有一个 `/build` skill 只做 ④，
+> 且与本仓生产实际有三处不符——admin/portal 用 `Dockerfile` 而非 `Dockerfile.k8s`（会烤进 compose 版 nginx 配置）、
+> tag 用 `YYYYMMDD-N` 且禁 `latest`（生产实为 git short SHA，且 `rag-server.yaml` 依赖 `openindu-backend:latest`）、
+> build context 用聚合仓根目录而非子模块目录。修复已提 control-tower PR；在其合并前，**本仓一律用 `/release`**。
 
 ---
 

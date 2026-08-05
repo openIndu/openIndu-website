@@ -68,4 +68,5 @@ openIndu-website（聚合仓 / 开发入口）
 - **control-tower** 维护守则（`/principle`）、角色 agent、流程 skill 和 `route.json`（仓库路由）
 - 守则修改走 control-tower 的 `spec/` 草稿 → arbiter 审核 → `revision/` 记录 → PR，不在子仓改
 - 子仓获取更新：`/plugin update openindu-control-tower@openindu`
-- 本仓只保留插件**没有等价物**的资产：`development-workflow.md` 与 `.claude/commands/build.md`（覆盖 RULE 11 ④+⑤，插件 `/build` 只做 ④）
+- 本仓只保留插件**没有等价物**的资产：`development-workflow.md` 与 `.claude/commands/release.md`
+  （`/release` 覆盖 RULE 11 ④+⑤；插件 `/build` 只做 ④，且 Dockerfile/tag/build-context 三处与本仓生产不符，故本仓不用它）

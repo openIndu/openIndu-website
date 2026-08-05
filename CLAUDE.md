@@ -64,17 +64,12 @@ openIndu-website/
 ├── prod/                             # 生产规范（权威文档源）
 │   └── requirements.md               # 平台需求文档（所有功能开发的唯一需求来源）
 ├── .claude/
-│   ├── settings.json                 # Hooks 配置（防 push main + lint）
-│   ├── settings.local.json           # 权限配置
-│   ├── agents/                       # Agent 定义
-│   │   ├── backend-developer.md      # FastAPI 后端开发
-│   │   ├── frontend-developer.md     # React 前端开发
-│   │   ├── fullstack-developer.md    # 全栈协调（跨前后端任务）
-│   │   └── devops-engineer.md        # 部署与运维
+│   ├── settings.json                 # Hooks 配置（防 push main + lint + docker volume 保护）+ control-tower 插件引用
+│   ├── commands/                    # /build 镜像构建命令（control-tower 无等价）
+│   │   └── build.md
 │   └── governance/
-│       ├── README.md                 # 治理体系说明
-│       ├── principle.md              # Agent 行为守则
-│       └── development-workflow.md   # 开发工作流
+│       ├── development-workflow.md   # 开发工作流
+│       └── README.md                 # 治理体系说明
 ├── openIndu-backend/                 # git submodule: FastAPI 后端
 ├── openIndu-admin/                   # git submodule: React 管理后台
 ├── openIndu-portal/                  # git submodule: React 官网前台

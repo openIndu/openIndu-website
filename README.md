@@ -1,55 +1,57 @@
 # openIndu-website
 
-openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）、Backend（FastAPI + MCP）、Studio（工程产物生成引擎）四大子仓。
+> **Language:** English | [中文](README_ZH.md)
 
-> **版本**：`requirements.md` v0.13.0（2026-07-10）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
+The **monorepo** for the openIndu open-source industrial automation ecosystem, managing four sub-repos — Portal (community site), Admin (dashboard), Backend (FastAPI + MCP), and Studio (engineering output engine) — via git submodules.
 
----
-
-## ✨ 平台能力速览
-
-- **手机号短信登录**：JWT + jti 黑名单 + refresh rotation；admin 拉黑/强制登出/审计日志
-- **三层标签体系**：品牌 → 分类 → 系列，全数据驱动（`resource_tags`），运营改标签免改代码
-- **文档/软件下载中心**：分页 + 筛选 + 在线预览，私有桶 + 5 分钟短期签名 URL
-- **🚀 浏览器直传 OSS**：大软件包（≤5GB）`init / complete / abort` 三段式 multipart，后端零文件带宽（流程详见 [`prod/requirements.md` §4.3.6-2](prod/requirements.md#4362-上传安全设计浏览器直传-oss大文件)）
-- **🗂️ 存储后端抽象**：`STORAGE_BACKEND=local | s3` 一键切换，本地 HMAC 签名直链
-- **📊 运营数据看板**：访客埋点 + 在线人数 + 地理分布 + 今日·本月趋势
-- **📑 双轨配额**：文档下载 5/天、文档预览 20/天，独立计数，admin 豁免
-- **🧠 MCP Server**：Claude Code 通过 MCP 协议查询知识库（`search_plc_manual` 等 8 类工具）
-- **🔄 发布工作流**：文档 `is_published` + 软件**版本级**发布 + 批量发布
+> **Version**: `requirements.md` v0.13.0 (2026-07-10) | **Authoritative spec**: [`prod/requirements.md`](prod/requirements.md)
 
 ---
 
-## 🏗️ 架构总览
+## Features at a Glance
+
+- **Phone + SMS login**: JWT with jti deny-list + refresh rotation; admin blacklisting, forced logout, audit log
+- **Three-tier tag system**: Brand -> Category -> Series, fully data-driven (`resource_tags`); operators change tags without code changes
+- **Document & software download center**: pagination + filtering + inline preview; private bucket with 5-min presigned URLs
+- **Browser-direct upload to OSS**: large packages (up to 5 GB) via `init / complete / abort` three-phase multipart, zero backend file bandwidth (see [`prod/requirements.md` section 4.3.6-2](prod/requirements.md#4362-upload-security-design-browser-direct-oss-large-files))
+- **Storage backend abstraction**: `STORAGE_BACKEND=local | s3` one-line switch; local HMAC-signed direct links
+- **Operations dashboard**: visitor analytics + online count + geographic distribution + today/this-month trends
+- **Dual-track rate limiting**: document download 5/day, document preview 20/day, independent counters, admin exempt
+- **MCP Server**: Claude Code queries the knowledge base via the MCP protocol (`search_plc_manual` and 7 other tool categories)
+- **Publishing workflow**: document `is_published` + software version-level publishing + batch publishing
+
+---
+
+## Architecture Overview
 
 ```mermaid
 graph TB
-    subgraph Users["👥 用户"]
-        U1["访客 / 已认证成员<br/>浏览器"]
-        U2["管理员<br/>浏览器"]
+    subgraph Users["👥 Users"]
+        U1["Visitors / Authenticated Members<br/>Browser"]
+        U2["Admins<br/>Browser"]
         U3["Claude Code / AI Agent"]
     end
 
     ING["🌐 Nginx Ingress"]
 
-    subgraph Frontend["前端 — React 19 + Tailwind 4 + shadcn/ui"]
+    subgraph Frontend["Frontend — React 19 + Tailwind 4 + shadcn/ui"]
         P["openIndu-portal<br/>openindu.com"]
         A["openIndu-admin<br/>admin.openindu.com"]
     end
 
-    subgraph Backend["openIndu-backend — FastAPI 双应用"]
+    subgraph Backend["openIndu-backend — FastAPI Dual Apps"]
         W["Web REST API<br/>api.openindu.com :8004"]
-        M["MCP Server<br/>:8005 · 仅内网"]
+        M["MCP Server<br/>:8005 · internal only"]
     end
 
-    subgraph Data["数据层"]
-        PG[("PostgreSQL 15<br/>业务数据 · 审计 · 埋点")]
-        ML[("Milvus 2.4<br/>向量库")]
-        OSS[("对象存储<br/>OSS / MinIO / 本地 FS")]
+    subgraph Data["Data Layer"]
+        PG[("PostgreSQL 15<br/>business data · audit · analytics")]
+        ML[("Milvus 2.4<br/>vector database")]
+        OSS[("Object Storage<br/>OSS / MinIO / local FS")]
     end
 
     RAG["RAG Server<br/>PyMuPDF + BGE-M3"]
-    SMS["阿里云 / 腾讯云<br/>短信"]
+    SMS["Alibaba Cloud / Tencent Cloud<br/>SMS"]
 
     U1 -->|HTTPS| ING
     U2 -->|HTTPS| ING
@@ -59,12 +61,12 @@ graph TB
 
     P -->|REST| W
     A -->|REST| W
-    P -. "签名 URL 下载/预览" .-> OSS
-    A -. "直传分片" .-> OSS
+    P -. "signed URL download/preview" .-> OSS
+    A -. "direct multipart upload" .-> OSS
 
     W --> PG
-    W <-->|读写 + 签名| OSS
-    W -->|触发同步| RAG
+    W <-->|read/write + signing| OSS
+    W -->|trigger sync| RAG
     W --> SMS
 
     RAG --> OSS
@@ -72,7 +74,7 @@ graph TB
 
     M --> ML
     M --> PG
-    U3 -->|MCP 协议<br/>内网 / localhost| M
+    U3 -->|MCP protocol<br/>internal / localhost| M
 
     classDef storage fill:#fef3c7,stroke:#d97706
     classDef backend fill:#dbeafe,stroke:#2563eb
@@ -82,78 +84,77 @@ graph TB
     class P,A frontend
 ```
 
-**关键边界**：
+**Key boundaries**:
 
-- `Web API` 面向公网，CORS + 限流 + JWT；`MCP Server` 仅内网，服务间认证
-- `OSS` 为**私有桶**，所有访问经 `Web API` 签发短期 Presigned URL（生产）或 HMAC 签名直链（本地）
-- 文件流**不经后端**——下载/预览/直传均由浏览器与 OSS 直连
-
----
-
-## 🔁 直传 OSS 上传流程
-
-详见 [`prod/requirements.md` §4.3.6-2](prod/requirements.md#4362-上传安全设计浏览器直传-oss大文件) — 含三段式握手、分片签名、本地模式回退的完整时序图与协议契约。
+- `Web API` is public-facing, with CORS + rate limiting + JWT; `MCP Server` is internal-only, with service-to-service auth
+- `OSS` is a **private bucket**; all access goes through `Web API` issuing short-lived presigned URLs (production) or HMAC-signed direct links (local)
+- File streams **do not pass through the backend** — downloads, previews, and uploads are all browser-to-OSS direct
 
 ---
 
-## 📦 子仓库
+## Direct OSS Upload Flow
 
-| 子仓库                                                           | 路径                | 技术栈                                     |  状态   |
-| ---------------------------------------------------------------- | ------------------- | ------------------------------------------ | :-----: |
-| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 活跃 |
-| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
-| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
-| [openIndu-studio](https://github.com/openIndu/openIndu-studio)   | `openIndu-studio/`  | Python · `converters/` 引擎 · AutoCAD COM  | 🟢 活跃 |
-
-> Studio 早期的 Vue 前端 / FastAPI 后端已迁出至 portal·admin·backend，仓库本身转型为**工程产物生成引擎 + AI Agent 工作流工具链**，
-> 现为第 4 个活跃 submodule（不再归档）。对外服务化规划见 [`prod/requirements.md` §2.2.8 / §4.3.13](prod/requirements.md)。
+See [`prod/requirements.md` section 4.3.6-2](prod/requirements.md#4362-upload-security-design-browser-direct-oss-large-files) — includes the full sequence diagram and protocol contract for the three-phase handshake, part signing, and local-mode fallback.
 
 ---
 
-## 🚀 快速开始
+## Sub-repositories
+
+| Sub-repo                                                           | Path                | Stack                                      |  Status  |
+| ------------------------------------------------------------------ | ------------------- | ------------------------------------------ | :------: |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend)   | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 active |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin)       | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 active |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal)     | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 active |
+| [openIndu-studio](https://github.com/openIndu/openIndu-studio)     | `openIndu-studio/`  | Python · `converters/` engine · AutoCAD COM | 🟢 active |
+
+> Studio's earlier Vue frontend / FastAPI backend have been migrated out to portal, admin, and backend. The repo has been repurposed as an **engineering-output generation engine + AI Agent workflow toolchain**, and is now the 4th active submodule (no longer archived). See [`prod/requirements.md` sections 2.2.8 / 4.3.13](prod/requirements.md) for future service-oriented plans.
+
+---
+
+## Quick Start
 
 ```bash
-# 1. 克隆聚合仓（含所有子仓）
+# 1. Clone the monorepo (with all sub-repos)
 git clone --recurse-submodules https://github.com/openIndu/openIndu-website.git
 cd openIndu-website
 
-# 2. 从模板创建本地环境变量
+# 2. Create local env file from template
 cp .env.example .env
-# 编辑 .env，填写 OSS / SMS 等配置；本地开发可保留 STORAGE_BACKEND=local
+# Edit .env to fill in OSS / SMS config; for local dev keep STORAGE_BACKEND=local
 
-# 3. 一键启动所有服务
+# 3. Start all services
 docker compose up -d --build
 ```
 
-**本地服务端口**：
+**Local service ports**:
 
-| 服务            |  端口   | 说明                         |
-| --------------- | :-----: | ---------------------------- |
-| openIndu-portal | `3000`  | 社区官网前台                 |
-| openIndu-admin  | `3001`  | 统一管理后台                 |
-| Web API         | `8004`  | REST API                     |
-| MCP Server      | `8005`  | Claude Code 知识检索（内网） |
-| PostgreSQL      | `5432`  | 业务数据库                   |
-| Milvus          | `19530` | 向量数据库                   |
+| Service          |  Port   | Description                      |
+| ---------------- | :-----: | -------------------------------- |
+| openIndu-portal  | `3000`  | Community site                   |
+| openIndu-admin   | `3001`  | Admin dashboard                  |
+| Web API          | `8004`  | REST API                         |
+| MCP Server       | `8005`  | Claude Code knowledge retrieval  |
+| PostgreSQL       | `5432`  | Business database                |
+| Milvus           | `19530` | Vector database                  |
 
-**默认管理员**：手机号 `13800000000`，验证码 `888888`（开发环境固定）。
+**Default admin**: phone `13800000000`, verification code `888888` (fixed for dev environment).
 
 ---
 
-## 🔧 常用命令
+## Common Commands
 
 ```bash
-# 同步所有子仓到最新 main
+# Sync all sub-repos to latest main
 git submodule update --remote --recursive
 
-# 在某个子仓内开发
+# Develop inside a sub-repo
 cd openIndu-backend
 git checkout -b feat/my-feature
-# ... 修改 ...
+# ... make changes ...
 git push origin feat/my-feature
 gh pr create --repo openIndu/openIndu-backend --base main
 
-# 回到聚合仓提交 submodule 指针变更
+# Back in the monorepo, commit the submodule pointer update
 cd ..
 git add openIndu-backend
 git commit -m "chore: bump backend submodule"
@@ -161,21 +162,26 @@ git commit -m "chore: bump backend submodule"
 
 ---
 
-## 📚 文档
+## Documentation
 
-- [**prod/requirements.md**](prod/requirements.md) — 平台需求文档（v0.13.0，唯一权威需求来源）
-- [CLAUDE.md](CLAUDE.md) — AI Agent 开发入口指南
-- [.claude/governance/](.claude/governance/) — 本仓特有开发工作流（守则本身见 `/principle`）
-- [design/](design/) — SDLC 角色产物工作区（业务/产品/架构/数据/运维/UIUX/BI）
+- [**prod/requirements.md**](prod/requirements.md) — platform requirements doc (v0.13.0, the single authoritative requirements source)
+- [CLAUDE.md](CLAUDE.md) — AI Agent developer entry guide
+- [.claude/governance/](.claude/governance/) — repo-specific development workflows (for the principles themselves, see `/principle`)
+- [design/](design/) — SDLC role artifact workspace (business / product / architecture / data / ops / UIUX / BI)
 
 ---
 
-## 🛡️ 治理
+## Governance
 
-本仓受 [openIndu/control-tower](https://github.com/openIndu/control-tower) 统一管控，
-守则（11 条 RULE）与 20 个角色 agent 由插件 `openindu-control-tower@openindu` 下发，任务第一步调用 `/principle`：
+This repo is governed by [openIndu/control-tower](https://github.com/openIndu/control-tower). The 11 RULEs and 20 role agents are distributed via the `openindu-control-tower@openindu` plugin. Every task starts with `/principle`:
 
-- ❌ **禁止**直接 push `main`/`master`，所有变更须走功能分支 + PR
-- 🗂️ K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)，本仓不存
-- 📋 所有功能开发以 `prod/requirements.md` 为唯一需求来源
-- 🔐 敏感信息（密钥/密码）禁止硬编码，统一走环境变量 / K8s Secret
+- Prohibited: direct push to `main`/`master`; all changes go through feature branch + PR
+- K8s deployment manifests belong in [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy), not in this repo
+- All feature development takes `prod/requirements.md` as the single requirements source
+- Secrets (keys, passwords) must never be hardcoded; always use environment variables / K8s Secrets
+
+---
+
+## License
+
+Apache-2.0

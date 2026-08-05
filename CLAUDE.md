@@ -1,7 +1,6 @@
 # openIndu-website — 聚合仓项目指南
 
-> **Rule #1（元规则）**：任何 Agent 在执行任何任务前，必须先加载并遵守
-> [`.claude/governance/principle.md`](.claude/governance/principle.md)（Agent 行为守则）。
+> **Rule #1（元规则）**：本仓遵守 openIndu 社区统一守则（11 条 RULE），由公共插件 `openindu-control-tower@openindu` 提供。**任何任务第一步：调用 `/principle` 加载守则。** 本仓不得自立守则副本；守则修改走 `openIndu/control-tower` 的 spec + arbiter 审核流程。
 >
 > **权威需求文档**：[`prod/requirements.md`](prod/requirements.md) — 所有功能开发的唯一需求来源。
 >

@@ -1,8 +1,8 @@
 # openIndu-website
 
-openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）、Backend（FastAPI + MCP）三大子仓。
+openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）、Backend（FastAPI + MCP）、Studio（工程产物生成引擎）四大子仓。
 
-> **版本**：`requirements.md` v0.8.0（2026-06-24）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
+> **版本**：`requirements.md` v0.13.0（2026-07-10）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
 
 ---
 
@@ -83,6 +83,7 @@ graph TB
 ```
 
 **关键边界**：
+
 - `Web API` 面向公网，CORS + 限流 + JWT；`MCP Server` 仅内网，服务间认证
 - `OSS` 为**私有桶**，所有访问经 `Web API` 签发短期 Presigned URL（生产）或 HMAC 签名直链（本地）
 - 文件流**不经后端**——下载/预览/直传均由浏览器与 OSS 直连
@@ -97,11 +98,15 @@ graph TB
 
 ## 📦 子仓库
 
-| 子仓库 | 路径 | 技术栈 | 状态 |
-|--------|------|--------|:---:|
-| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3 | 🟢 活跃 |
-| [openIndu-admin](https://github.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
-| [openIndu-portal](https://github.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
+| 子仓库                                                           | 路径                | 技术栈                                     |  状态   |
+| ---------------------------------------------------------------- | ------------------- | ------------------------------------------ | :-----: |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 活跃 |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
+| [openIndu-studio](https://github.com/openIndu/openIndu-studio)   | `openIndu-studio/`  | Python · `converters/` 引擎 · AutoCAD COM  | 🟢 活跃 |
+
+> Studio 早期的 Vue 前端 / FastAPI 后端已迁出至 portal·admin·backend，仓库本身转型为**工程产物生成引擎 + AI Agent 工作流工具链**，
+> 现为第 4 个活跃 submodule（不再归档）。对外服务化规划见 [`prod/requirements.md` §2.2.8 / §4.3.13](prod/requirements.md)。
 
 ---
 
@@ -122,14 +127,14 @@ docker compose up -d --build
 
 **本地服务端口**：
 
-| 服务 | 端口 | 说明 |
-|------|:---:|------|
-| openIndu-portal | `3000` | 社区官网前台 |
-| openIndu-admin | `3001` | 统一管理后台 |
-| Web API | `8004` | REST API |
-| MCP Server | `8005` | Claude Code 知识检索（内网） |
-| PostgreSQL | `5432` | 业务数据库 |
-| Milvus | `19530` | 向量数据库 |
+| 服务            |  端口   | 说明                         |
+| --------------- | :-----: | ---------------------------- |
+| openIndu-portal | `3000`  | 社区官网前台                 |
+| openIndu-admin  | `3001`  | 统一管理后台                 |
+| Web API         | `8004`  | REST API                     |
+| MCP Server      | `8005`  | Claude Code 知识检索（内网） |
+| PostgreSQL      | `5432`  | 业务数据库                   |
+| Milvus          | `19530` | 向量数据库                   |
 
 **默认管理员**：手机号 `13800000000`，验证码 `888888`（开发环境固定）。
 
@@ -158,15 +163,17 @@ git commit -m "chore: bump backend submodule"
 
 ## 📚 文档
 
-- [**prod/requirements.md**](prod/requirements.md) — 平台需求文档（v0.8.0，唯一权威需求来源）
+- [**prod/requirements.md**](prod/requirements.md) — 平台需求文档（v0.13.0，唯一权威需求来源）
 - [CLAUDE.md](CLAUDE.md) — AI Agent 开发入口指南
-- [.claude/governance/](.claude/governance/) — Agent 行为守则与开发工作流
+- [.claude/governance/](.claude/governance/) — 本仓特有开发工作流（守则本身见 `/principle`）
+- [design/](design/) — SDLC 角色产物工作区（业务/产品/架构/数据/运维/UIUX/BI）
 
 ---
 
 ## 🛡️ 治理
 
-本仓受 [workflow-control-tower](https://github.com/agentic-develop-playground/workflow-control-tower) 统一管控：
+本仓受 [openIndu/control-tower](https://github.com/openIndu/control-tower) 统一管控，
+守则（11 条 RULE）与 20 个角色 agent 由插件 `openindu-control-tower@openindu` 下发，任务第一步调用 `/principle`：
 
 - ❌ **禁止**直接 push `main`/`master`，所有变更须走功能分支 + PR
 - 🗂️ K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)，本仓不存

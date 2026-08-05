@@ -1,26 +1,31 @@
 # openIndu-website 治理体系
 
-本目录包含 openIndu-website 聚合仓的 AI Agent 治理规范。
+本目录只保留 openIndu-website 聚合仓**特有**的流程文档。
+Agent 行为守则与角色定义均已收敛到公共插件 `openindu-control-tower@openindu`（源仓 [openIndu/control-tower](https://github.com/openIndu/control-tower)），本仓不再保留副本。
 
 ## 文件说明
 
-| 文件 | 说明 |
-|------|------|
-| `principle.md` | Agent 行为守则（Rule #1） |
-| `development-workflow.md` | 开发工作流定义 |
+| 文件                      | 说明                                      |
+| ------------------------- | ----------------------------------------- |
+| `development-workflow.md` | 开发工作流定义（聚合仓 + submodule 特有） |
+
+> `principle.md` 已于 PR #167 删除 —— 守则唯一权威源是插件的 `/principle`（11 条 RULE）。
+> 任何任务第一步必须调用 `/principle`；本仓不得另立守则副本（RULE 1）。
 
 ## Agent 角色体系
 
-openIndu-website 有两大类 Agent：
+角色 agent 由插件提供（v5.2.0 共 20 个，零业务绑定），本仓 `.claude/agents/` 已于 PR #167 清空。
 
-### Meta 层（治理）
-- **Fullstack Developer**: 全栈协调、跨子仓任务分派、架构评审
-- **Arbiter**: 代码审核、跨模块仲裁（由 workflow-control-tower 统一管理）
+| 域          | Agent                                                                |
+| ----------- | -------------------------------------------------------------------- |
+| 治理        | `control-tower`、`manager`、`arbiter`                                |
+| 需求 / 设计 | `business-analyst`、`product-manager`、`architect`、`ui-ux-designer` |
+| 构建        | `backend`、`frontend`、`edge`、`station-control`                     |
+| 质量        | `reviewer`、`test`、`security`、`inspector`                          |
+| 数据 / 洞察 | `data`、`bi-analyst`、`codebase-analyst`                             |
+| 运维 / 发布 | `ops`、`release`                                                     |
 
-### Domain 层（开发）
-- **Backend Developer**: FastAPI 后端开发（openIndu-backend）
-- **Frontend Developer**: React 前端开发（openIndu-admin + openIndu-portal）
-- **DevOps Engineer**: 部署与运维（Docker、K8s、CI/CD）
+对应到本仓的写权限边界见 [`CLAUDE.md`](../../CLAUDE.md) 顶部的「文件写权限矩阵」。
 
 ## 开发流程
 
@@ -28,31 +33,39 @@ openIndu-website 有两大类 Agent：
 需求（prod/requirements.md）
     │
     ▼
-Fullstack Developer 方案设计
-    │
-    ├──→ Backend Developer ──→ PR ──→ Arbiter 审核
-    │
-    └──→ Frontend Developer ──→ PR ──→ Arbiter 审核
+codebase-analyst 预检（是否已存在实现 → 调整范围）
     │
     ▼
-联调测试 → DevOps 部署 → 验收
+business-analyst → product-manager → architect
+    │  产物写入 design/{business,product,architecture}/
+    │
+    ├──→ backend  ──→ 子仓 PR ──→ reviewer / arbiter 审核 ──→ 合并
+    │
+    └──→ frontend ──→ 子仓 PR ──→ reviewer / arbiter 审核 ──→ 合并
+    │
+    ▼
+聚合仓 submodule 指针 PR → /build 构建镜像 → infra-deploy PR → 集群 apply
+（RULE 11 完整交付链路，可用 /delivery-check 生成完成度清单）
 ```
 
-## 与 workflow-control-tower 的关系
+> `codebase-analyst` 预检是 SDLC 试跑发现的首要缺口，详见 [`design/pilot-findings.md`](../../design/pilot-findings.md)。
+
+## 与 control-tower 的关系
 
 ```
-workflow-control-tower（大脑 / 权威源）
-    │
-    │  下发 Agent 行为守则、流程模板
-    │
+openIndu/control-tower（大脑 / 权威源，private）
+    │  marketplace: openindu
+    │  plugin: openindu-control-tower（守则 + 20 agent + skill + push-main hook）
     ▼
 openIndu-website（聚合仓 / 开发入口）
     │
     ├── openIndu-backend（submodule）
     ├── openIndu-admin（submodule）
-    └── openIndu-portal（submodule）
+    ├── openIndu-portal（submodule）
+    └── openIndu-studio（submodule）
 ```
 
-- **workflow-control-tower** 维护 `team/principle.md`（Agent 守则权威源）和 `route.json`（仓库路由）
-- **openIndu-website** 的 `.claude/governance/principle.md` 是对权威源的项目层覆盖，保持一致
-- Agent prompt 的权威定义在 workflow-control-tower，本仓的 `.claude/agents/` 为项目特定 Agent
+- **control-tower** 维护守则（`/principle`）、角色 agent、流程 skill 和 `route.json`（仓库路由）
+- 守则修改走 control-tower 的 `spec/` 草稿 → arbiter 审核 → `revision/` 记录 → PR，不在子仓改
+- 子仓获取更新：`/plugin update openindu-control-tower@openindu`
+- 本仓只保留插件**没有等价物**的资产：`development-workflow.md` 与 `.claude/commands/build.md`（覆盖 RULE 11 ④+⑤，插件 `/build` 只做 ④）

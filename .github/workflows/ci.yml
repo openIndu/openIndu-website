@@ -37,3 +37,53 @@ jobs:
               yaml.safe_load(f)
           print('docker-compose.yml is valid YAML')
           "
+
+  validate-claude-settings:
+    name: Validate control-tower plugin config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure enabledPlugins / extraKnownMarketplaces are not empty
+        run: |
+          python3 - <<'PY'
+          import json, sys
+
+          PLUGIN = "openindu-control-tower@openindu"
+          MARKET = "openindu"
+          REPO = "openIndu/control-tower"
+          PATH = ".claude/settings.json"
+
+          try:
+              with open(PATH, encoding="utf-8") as f:
+                  s = json.load(f)
+          except (OSError, json.JSONDecodeError) as e:
+              print(f"::error::cannot read {PATH}: {e}")
+              sys.exit(1)
+
+          errors = []
+
+          if s.get("enabledPlugins", {}).get(PLUGIN) is not True:
+              errors.append(
+                  f'enabledPlugins["{PLUGIN}"] must be true, got {json.dumps(s.get("enabledPlugins"))}'
+              )
+
+          source = s.get("extraKnownMarketplaces", {}).get(MARKET, {}).get("source", {})
+          if source.get("repo") != REPO:
+              errors.append(
+                  f'extraKnownMarketplaces["{MARKET}"].source.repo must be "{REPO}", got {json.dumps(source.get("repo"))}'
+              )
+
+          if errors:
+              for e in errors:
+                  print(f"::error::{e}")
+              print()
+              print("Without these keys the control-tower plugin never loads, so /principle")
+              print("and the 20 SDLC role agents are silently unavailable (RULE 1 cannot run).")
+              print()
+              print("Claude Code rewrites this file in place and prunes entries it cannot")
+              print("resolve, so an emptied config is easy to commit by accident. Fix with:")
+              print("    git checkout -- .claude/settings.json")
+              sys.exit(1)
+
+          print(f"OK: {PLUGIN} enabled, marketplace {MARKET} -> {REPO}")
+          PY

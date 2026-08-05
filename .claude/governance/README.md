@@ -4,20 +4,22 @@
 
 ## 文件说明
 
-| 文件 | 说明 |
-|------|------|
-| `principle.md` | Agent 行为守则（Rule #1） |
-| `development-workflow.md` | 开发工作流定义 |
+| 文件                      | 说明                      |
+| ------------------------- | ------------------------- |
+| `principle.md`            | Agent 行为守则（Rule #1） |
+| `development-workflow.md` | 开发工作流定义            |
 
 ## Agent 角色体系
 
 openIndu-website 有两大类 Agent：
 
 ### Meta 层（治理）
+
 - **Fullstack Developer**: 全栈协调、跨子仓任务分派、架构评审
 - **Arbiter**: 代码审核、跨模块仲裁（由 workflow-control-tower 统一管理）
 
 ### Domain 层（开发）
+
 - **Backend Developer**: FastAPI 后端开发（openIndu-backend）
 - **Frontend Developer**: React 前端开发（openIndu-admin + openIndu-portal）
 - **DevOps Engineer**: 部署与运维（Docker、K8s、CI/CD）

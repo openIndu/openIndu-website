@@ -16,18 +16,19 @@
 >
 > **文件写权限矩阵**（仓库特有约束，从本地 principle.md 折入）：
 >
-> | Agent role | 可写目录 |
-> |---|---|
-> | backend | `openIndu-backend/`, `prod/` |
-> | frontend | `openIndu-admin/`, `openIndu-portal/`, `prod/` |
-> | manager / architect | 全部子仓 + `prod/`（设计 + 协调） |
-> | ops / release | 聚合仓根目录（Dockerfile、CI 配置）；K8s 清单 → infra-deploy |
+> | Agent role          | 可写目录                                                     |
+> | ------------------- | ------------------------------------------------------------ |
+> | backend             | `openIndu-backend/`, `prod/`                                 |
+> | frontend            | `openIndu-admin/`, `openIndu-portal/`, `prod/`               |
+> | manager / architect | 全部子仓 + `prod/`（设计 + 协调）                            |
+> | ops / release       | 聚合仓根目录（Dockerfile、CI 配置）；K8s 清单 → infra-deploy |
 
 ## 0. 工作目录约定
 
 **工作目录**: `openIndu-website`
 
 **重要约定**:
+
 - 所有文件操作必须限制在 `openIndu-website` 工作目录内
 - 所有相对路径均以 `openIndu-website` 为根目录
 - 子仓库通过 git submodule 挂载，Agent 操作子仓代码前需先 `cd` 进入对应子目录
@@ -38,20 +39,20 @@
 
 **openIndu-website** 是 openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理以下子仓库：
 
-| 子仓库 | 路径 | 技术栈 | 说明 |
-|--------|------|--------|------|
-| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus | REST API + MCP Server |
-| [openIndu-admin](https://github.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台 |
-| [openIndu-portal](https://github.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台 |
+| 子仓库                                                           | 路径                | 技术栈                                | 说明                  |
+| ---------------------------------------------------------------- | ------------------- | ------------------------------------- | --------------------- |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus         | REST API + MCP Server |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台          |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台          |
 
 ### 平台服务总览
 
-| 服务 | 域名/端口 | 定位 | 用户 |
-|------|------|------|------|
-| openIndu-portal | `openindu.com` | 社区官网前台 | 所有人（含未登录） |
-| openIndu-admin | `admin.openindu.com` | 统一管理后台 | 已认证用户（按角色分级） |
-| openIndu-backend (Web) | `api.openindu.com` | REST API（Portal + Admin） | 前端应用 |
-| openIndu-backend (MCP) | `:8005` | MCP Server（Claude Code 知识检索） | Claude Code / AI Agent |
+| 服务                   | 域名/端口            | 定位                               | 用户                     |
+| ---------------------- | -------------------- | ---------------------------------- | ------------------------ |
+| openIndu-portal        | `openindu.com`       | 社区官网前台                       | 所有人（含未登录）       |
+| openIndu-admin         | `admin.openindu.com` | 统一管理后台                       | 已认证用户（按角色分级） |
+| openIndu-backend (Web) | `api.openindu.com`   | REST API（Portal + Admin）         | 前端应用                 |
+| openIndu-backend (MCP) | `:8005`              | MCP Server（Claude Code 知识检索） | Claude Code / AI Agent   |
 
 ---
 
@@ -117,17 +118,17 @@ openIndu-website/
 
 ## 4. 技术栈汇总
 
-| 层 | 技术 | 说明 |
-|----|------|------|
-| Portal 前端 | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 社区官网 |
-| Admin 前端 | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 管理后台 |
-| 后端 Web API | Python 3.11+ + FastAPI 0.115+ + SQLAlchemy 2.x | REST API |
-| 后端 MCP | Python 3.11+ + FastAPI + MCP Python SDK 1.x | Claude Code 知识检索 |
-| 数据库 | PostgreSQL 15 | 业务数据 |
-| 向量库 | Milvus 2.4 | 知识库向量存储 |
-| 对象存储 | 阿里云 OSS（MinIO 开发环境） | PDF + 软件包 |
-| RAG | PyMuPDF + BGE-M3 + sentence-transformers | PDF 解析与向量化 |
-| 短信 | 阿里云短信 / 腾讯云短信 | 验证码发送 |
+| 层           | 技术                                                          | 说明                 |
+| ------------ | ------------------------------------------------------------- | -------------------- |
+| Portal 前端  | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 社区官网             |
+| Admin 前端   | React 19 + TypeScript 5 + Vite 6 + Tailwind CSS 4 + shadcn/ui | 管理后台             |
+| 后端 Web API | Python 3.11+ + FastAPI 0.115+ + SQLAlchemy 2.x                | REST API             |
+| 后端 MCP     | Python 3.11+ + FastAPI + MCP Python SDK 1.x                   | Claude Code 知识检索 |
+| 数据库       | PostgreSQL 15                                                 | 业务数据             |
+| 向量库       | Milvus 2.4                                                    | 知识库向量存储       |
+| 对象存储     | 阿里云 OSS（MinIO 开发环境）                                  | PDF + 软件包         |
+| RAG          | PyMuPDF + BGE-M3 + sentence-transformers                      | PDF 解析与向量化     |
+| 短信         | 阿里云短信 / 腾讯云短信                                       | 验证码发送           |
 
 ---
 
@@ -177,14 +178,14 @@ gh pr create --repo openIndu/<subrepo> --base main --head feat/my-feature
 
 ### 部署文件分层
 
-| 文件类型 | 放置位置 | 说明 |
-|---------|---------|------|
-| `Dockerfile` | 各子仓 | 构建逻辑与代码强绑定，随代码变更 |
-| `nginx.conf` | Portal / Admin 子仓 | 前端路由规则各不相同 |
-| `docker-compose.yml` | 聚合仓根目录 | 跨子仓服务编排（依赖、端口、网络） |
-| `.env` | 聚合仓根目录 | 本地开发环境变量（Git 忽略，不提交） |
-| `.env.example` | 聚合仓根目录 | 环境变量模板（Git 跟踪） |
-| K8s 部署清单 | `infra-deploy` 仓 | 生产部署，不存本仓 |
+| 文件类型             | 放置位置            | 说明                                 |
+| -------------------- | ------------------- | ------------------------------------ |
+| `Dockerfile`         | 各子仓              | 构建逻辑与代码强绑定，随代码变更     |
+| `nginx.conf`         | Portal / Admin 子仓 | 前端路由规则各不相同                 |
+| `docker-compose.yml` | 聚合仓根目录        | 跨子仓服务编排（依赖、端口、网络）   |
+| `.env`               | 聚合仓根目录        | 本地开发环境变量（Git 忽略，不提交） |
+| `.env.example`       | 聚合仓根目录        | 环境变量模板（Git 跟踪）             |
+| K8s 部署清单         | `infra-deploy` 仓   | 生产部署，不存本仓                   |
 
 ### 开发环境启动
 
@@ -201,21 +202,21 @@ docker compose up -d --build
 
 ### 本地服务端口
 
-| 服务 | 端口 | 说明 |
-|------|:---:|------|
-| openIndu-portal | `3000` | 社区官网前台 |
-| openIndu-admin | `3001` | 管理后台 |
-| Web API | `8004` | REST API |
-| MCP Server | `8005` | Claude Code 知识检索 |
-| PostgreSQL | `5432` | 业务数据库 |
-| Milvus | `19530` | 向量数据库 |
+| 服务            |  端口   | 说明                 |
+| --------------- | :-----: | -------------------- |
+| openIndu-portal | `3000`  | 社区官网前台         |
+| openIndu-admin  | `3001`  | 管理后台             |
+| Web API         | `8004`  | REST API             |
+| MCP Server      | `8005`  | Claude Code 知识检索 |
+| PostgreSQL      | `5432`  | 业务数据库           |
+| Milvus          | `19530` | 向量数据库           |
 
 ### 存储架构
 
-| 场景 | 业务文件存储 | Milvus 内部存储 |
-|------|:---:|:---:|
+| 场景         |              业务文件存储              |       Milvus 内部存储       |
+| ------------ | :------------------------------------: | :-------------------------: |
 | **本地开发** | 本地文件系统 (`STORAGE_BACKEND=local`) | MinIO（容器内，不暴露端口） |
-| **生产环境** | 阿里云 OSS (`STORAGE_BACKEND=s3`) | MinIO（K8s 内部署） |
+| **生产环境** |   阿里云 OSS (`STORAGE_BACKEND=s3`)    |     MinIO（K8s 内部署）     |
 
 切换存储后端只需修改 `.env` 中的 `STORAGE_BACKEND` 环境变量，无需改代码。
 
@@ -223,11 +224,11 @@ docker compose up -d --build
 
 启动后自动创建管理员账号：
 
-| 字段 | 值 |
-|------|------|
-| 手机号 | `13800000000` |
+| 字段   | 值                       |
+| ------ | ------------------------ |
+| 手机号 | `13800000000`            |
 | 验证码 | `888888`（开发环境固定） |
-| 角色 | `admin` |
+| 角色   | `admin`                  |
 
 ---
 

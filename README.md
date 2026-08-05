@@ -83,6 +83,7 @@ graph TB
 ```
 
 **关键边界**：
+
 - `Web API` 面向公网，CORS + 限流 + JWT；`MCP Server` 仅内网，服务间认证
 - `OSS` 为**私有桶**，所有访问经 `Web API` 签发短期 Presigned URL（生产）或 HMAC 签名直链（本地）
 - 文件流**不经后端**——下载/预览/直传均由浏览器与 OSS 直连
@@ -97,11 +98,11 @@ graph TB
 
 ## 📦 子仓库
 
-| 子仓库 | 路径 | 技术栈 | 状态 |
-|--------|------|--------|:---:|
-| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3 | 🟢 活跃 |
-| [openIndu-admin](https://github.com/openIndu/openIndu-admin) | `openIndu-admin/` | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
-| [openIndu-portal](https://github.com/openIndu/openIndu-portal) | `openIndu-portal/` | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
+| 子仓库                                                           | 路径                | 技术栈                                     |  状态   |
+| ---------------------------------------------------------------- | ------------------- | ------------------------------------------ | :-----: |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 活跃 |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
 
 ---
 
@@ -122,14 +123,14 @@ docker compose up -d --build
 
 **本地服务端口**：
 
-| 服务 | 端口 | 说明 |
-|------|:---:|------|
-| openIndu-portal | `3000` | 社区官网前台 |
-| openIndu-admin | `3001` | 统一管理后台 |
-| Web API | `8004` | REST API |
-| MCP Server | `8005` | Claude Code 知识检索（内网） |
-| PostgreSQL | `5432` | 业务数据库 |
-| Milvus | `19530` | 向量数据库 |
+| 服务            |  端口   | 说明                         |
+| --------------- | :-----: | ---------------------------- |
+| openIndu-portal | `3000`  | 社区官网前台                 |
+| openIndu-admin  | `3001`  | 统一管理后台                 |
+| Web API         | `8004`  | REST API                     |
+| MCP Server      | `8005`  | Claude Code 知识检索（内网） |
+| PostgreSQL      | `5432`  | 业务数据库                   |
+| Milvus          | `19530` | 向量数据库                   |
 
 **默认管理员**：手机号 `13800000000`，验证码 `888888`（开发环境固定）。
 

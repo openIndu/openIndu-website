@@ -7,14 +7,21 @@
 > **硬约束**：禁止直接 `git push` 到 `main`/`master`，必须走 PR；
 > K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)。
 >
-> **治理体系**：Agent 角色、开发流程、PR/执行/通信规范统一收敛于
-> [`.claude/governance/`](.claude/governance/README.md)。
+> **治理体系**：Agent 角色定义由公共插件 `openindu-control-tower@openindu` 提供（20 个 SDLC 角色 agent）；开发流程 + PR/执行/通信规范见
+> [`.claude/governance/`](.claude/governance/README.md)（保留 development-workflow.md 等仓库特有流程文档）。
 >
-> **管控中心**：本仓受 [openIndu/workflow-control-tower](https://github.com/openIndu/workflow-control-tower)
-> 统一管控，Agent 行为守则权威源为
-> [`workflow-control-tower/team/principle.md`](https://github.com/openIndu/workflow-control-tower/blob/main/team/principle.md)
-> （11 条 RULE，含 push-main 禁令 / K8s 归口 infra-deploy / Gitee PR 英文 /
+> **管控中心**：本仓受 [openIndu/control-tower](https://github.com/openIndu/control-tower)
+> 统一管控，Agent 行为守则权威源为 `/principle`（11 条 RULE，含 push-main 禁令 / K8s 归口 infra-deploy / Gitee PR 英文 /
 > 生产 SQL guard / 修复完整链路 等 openIndu 硬约束）。
+>
+> **文件写权限矩阵**（仓库特有约束，从本地 principle.md 折入）：
+>
+> | Agent role | 可写目录 |
+> |---|---|
+> | backend | `openIndu-backend/`, `prod/` |
+> | frontend | `openIndu-admin/`, `openIndu-portal/`, `prod/` |
+> | manager / architect | 全部子仓 + `prod/`（设计 + 协调） |
+> | ops / release | 聚合仓根目录（Dockerfile、CI 配置）；K8s 清单 → infra-deploy |
 
 ## 0. 工作目录约定
 

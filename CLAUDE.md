@@ -14,14 +14,18 @@
 > 统一管控，Agent 行为守则权威源为 `/principle`（11 条 RULE，含 push-main 禁令 / K8s 归口 infra-deploy / Gitee PR 英文 /
 > 生产 SQL guard / 修复完整链路 等 openIndu 硬约束）。
 >
-> **文件写权限矩阵**（仓库特有约束，从本地 principle.md 折入）：
+> **文件写权限矩阵**（仓库特有约束，守则收敛到插件时保留在此）：
 >
 > | Agent role          | 可写目录                                                     |
 > | ------------------- | ------------------------------------------------------------ |
 > | backend             | `openIndu-backend/`, `prod/`                                 |
 > | frontend            | `openIndu-admin/`, `openIndu-portal/`, `prod/`               |
-> | manager / architect | 全部子仓 + `prod/`（设计 + 协调）                            |
+> | manager / architect | 全部子仓 + `prod/` + `design/`（设计 + 协调）                |
 > | ops / release       | 聚合仓根目录（Dockerfile、CI 配置）；K8s 清单 → infra-deploy |
+>
+> **插件加载前置条件**：`/principle` 与 20 个角色 agent 来自 marketplace `openindu`（源 `openIndu/control-tower`，private）。
+> 若 `/principle` 不存在，说明本机 marketplace 缓存仍指向旧仓 `workflow-control-tower`（只提供 `openindu-workflow`），
+> 需重新添加 marketplace 后重启 Claude Code，不要在本仓另建守则副本绕过。
 
 ## 0. 工作目录约定
 
@@ -39,11 +43,12 @@
 
 **openIndu-website** 是 openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理以下子仓库：
 
-| 子仓库                                                           | 路径                | 技术栈                                | 说明                  |
-| ---------------------------------------------------------------- | ------------------- | ------------------------------------- | --------------------- |
-| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus         | REST API + MCP Server |
-| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 + Tailwind CSS 4 + shadcn/ui | 统一管理后台          |
-| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 + Tailwind CSS 4 + shadcn/ui | 社区官网前台          |
+| 子仓库                                                           | 路径                | 技术栈                                     | 说明                                                                                          |
+| ---------------------------------------------------------------- | ------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus              | REST API + MCP Server                                                                         |
+| [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 + Tailwind CSS 4 + shadcn/ui      | 统一管理后台                                                                                  |
+| [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 + Tailwind CSS 4 + shadcn/ui      | 社区官网前台                                                                                  |
+| [openIndu-studio](https://github.com/openIndu/openIndu-studio)   | `openIndu-studio/`  | Python（`converters/` 引擎 + AutoCAD COM） | 工程产物生成引擎 + AI Agent 工作流工具链（详见 `prod/requirements.md` §0 / §2.2.8 / §4.3.13） |
 
 ### 平台服务总览
 
@@ -63,19 +68,29 @@ openIndu-website/
 ├── CLAUDE.md                         # 本文件：聚合仓入口指南
 ├── README.md                         # 项目说明
 ├── prod/                             # 生产规范（权威文档源）
-│   └── requirements.md               # 平台需求文档（所有功能开发的唯一需求来源）
+│   ├── requirements.md               # 平台需求文档（所有功能开发的唯一需求来源）
+│   └── rag-optimization-design.md    # RAG 检索优化设计
+├── design/                           # SDLC 角色产物工作区（control-tower 流程写入）
+│   ├── business/ product/ architecture/
+│   ├── database/ ops/ uiux/ bi/
+│   └── pilot-findings.md             # SDLC 流水线试跑发现的缺口
 ├── .claude/
 │   ├── settings.json                 # Hooks 配置（防 push main + lint + docker volume 保护）+ control-tower 插件引用
-│   ├── commands/                    # /build 镜像构建命令（control-tower 无等价）
-│   │   └── build.md
+│   ├── commands/                     # 仓库特有命令
+│   │   └── build.md                  # /build：镜像构建 + infra-deploy Gitee PR（RULE 11 步骤 ④+⑤）
 │   └── governance/
 │       ├── development-workflow.md   # 开发工作流
 │       └── README.md                 # 治理体系说明
 ├── openIndu-backend/                 # git submodule: FastAPI 后端
 ├── openIndu-admin/                   # git submodule: React 管理后台
 ├── openIndu-portal/                  # git submodule: React 官网前台
+├── openIndu-studio/                  # git submodule: 工程产物生成引擎（Python）
 └── .gitmodules
 ```
+
+> **`/build` 命名冲突提示**：control-tower 插件也提供 `/build` skill，但只覆盖 RULE 11 步骤 ④（构建 + 推送 Aliyun CR），
+> 明确不做 infra-deploy PR。本仓 `.claude/commands/build.md` 覆盖 ④+⑤（构建推送 + infra-deploy Gitee PR 改 tag），
+> 是插件版的超集，因此保留。本仓内使用 `/build` 时以仓库版为准。
 
 ---
 

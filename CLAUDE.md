@@ -5,7 +5,9 @@
 > **权威需求文档**：[`prod/requirements.md`](prod/requirements.md) — 所有功能开发的唯一需求来源。
 >
 > **硬约束**：禁止直接 `git push` 到 `main`/`master`，必须走 PR；
-> K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)。
+> K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)；
+> **PR 创建前必读** [`.claude/governance/development-workflow.md`](.claude/governance/development-workflow.md) **核对 scope / 需求关联 / Commit 规范**；
+> 每个 commit 末尾必须带 `Co-Authored-By: Claude <noreply@anthropic.com>`。
 >
 > **治理体系**：Agent 角色定义由公共插件 `openindu-control-tower@openindu` 提供（20 个 SDLC 角色 agent）；开发流程 + PR/执行/通信规范见
 > [`.claude/governance/`](.claude/governance/README.md)（保留 development-workflow.md 等仓库特有流程文档）。

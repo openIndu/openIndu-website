@@ -54,6 +54,22 @@ prod/requirements.md（需求文档）
 - 必须通过 CI 检查
 - 必须至少一人审核
 
+## Commit 规范
+
+- 格式：`<type>(<scope>): <description>`
+- **每个 commit 末尾必须带** `Co-Authored-By: Claude <noreply@anthropic.com>`
+- 禁止 amend 已推送的 commit；禁止 force-push 到 main
+
+## 视觉变更前置步骤
+
+对于涉及颜色、布局、尺寸、组件位置的 UI 变更，在写代码之前：
+
+1. 先出 **2-3 个方案选项**，每项一句话描述 + 优缺点
+2. 用户拍板后再一次实施到位
+3. 不直接回答"改好了你看看"——先问"你选 A 还是 B"
+
+不适用此步骤的场景：纯文案替换、Bug 修复、API 字段调整。
+
 ## 子仓 PR 流程
 
 1. 在子仓内创建分支

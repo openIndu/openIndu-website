@@ -54,3 +54,7 @@ models/
 
 # Local bulk-import run state (machine-specific paths/progress, not source)
 scripts/import_state.json
+
+# Local scratch notes (not source, not a formal changelog)
+changelog.txt
+scratchpad/

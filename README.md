@@ -2,7 +2,7 @@
 
 > **Language:** English | [中文](README_ZH.md)
 
-The **monorepo** for the openIndu open-source industrial automation ecosystem, managing four sub-repos — Portal (community site), Admin (dashboard), Backend (FastAPI + MCP), and Studio (engineering output engine) — via git submodules.
+The **aggregate repository** for the openIndu open-source industrial automation ecosystem, managing three deployable applications — Portal (community site), Admin (dashboard), and Backend (FastAPI + MCP) — via git submodules. The independently maintained [openIndu-studio](https://github.com/openIndu/openIndu-studio) project is no longer embedded in this repository.
 
 > **Version**: `requirements.md` v0.13.0 (2026-07-10) | **Authoritative spec**: [`prod/requirements.md`](prod/requirements.md)
 
@@ -105,9 +105,8 @@ See [`prod/requirements.md` section 4.3.6-2](prod/requirements.md#4362-upload-se
 | [openIndu-backend](https://github.com/openIndu/openIndu-backend)   | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 active |
 | [openIndu-admin](https://github.com/openIndu/openIndu-admin)       | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 active |
 | [openIndu-portal](https://github.com/openIndu/openIndu-portal)     | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 active |
-| [openIndu-studio](https://github.com/openIndu/openIndu-studio)     | `openIndu-studio/`  | Python · `converters/` engine · AutoCAD COM | 🟢 active |
 
-> Studio's earlier Vue frontend / FastAPI backend have been migrated out to portal, admin, and backend. The repo has been repurposed as an **engineering-output generation engine + AI Agent workflow toolchain**, and is now the 4th active submodule (no longer archived). See [`prod/requirements.md` sections 2.2.8 / 4.3.13](prod/requirements.md) for future service-oriented plans.
+> Studio's earlier Vue frontend / FastAPI backend have been migrated out to portal, admin, and backend. Studio continues as an **independently maintained engineering-output generation engine + AI Agent workflow toolchain**, but is no longer embedded as a Website submodule. See [`prod/requirements.md` sections 2.2.8 / 4.3.13](prod/requirements.md) for future service-oriented plans.
 
 ---
 

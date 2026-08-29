@@ -62,7 +62,6 @@ openIndu-website（聚合仓 / 开发入口）
     ├── openIndu-backend（submodule）
     ├── openIndu-admin（submodule）
     ├── openIndu-portal（submodule）
-    └── openIndu-studio（submodule）
 ```
 
 - **control-tower** 维护守则（`/principle`）、角色 agent、流程 skill 和 `route.json`（仓库路由）

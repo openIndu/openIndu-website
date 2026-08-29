@@ -86,7 +86,7 @@ docker build -f <Dockerfile> -t $REG/openindu-<comp>:latest -t $REG/openindu-<co
 >
 > The build context is the **submodule directory**, not the aggregate root —
 > each submodule has its own `.dockerignore`, and a root context would drag all
-> four submodules plus `models/` into the daemon.
+> three submodules plus `models/` into the daemon.
 
 Build sequentially (Docker Desktop on Windows handles parallel poorly). If
 any build returns non-zero, stop the whole skill — don't push partial set.

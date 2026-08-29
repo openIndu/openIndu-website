@@ -2,7 +2,7 @@
 
 # openIndu-website
 
-openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）、Backend（FastAPI + MCP）、Studio（工程产物生成引擎）四大子仓。
+openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）和 Backend（FastAPI + MCP）三个可部署应用。独立维护的 [openIndu-studio](https://github.com/openIndu/openIndu-studio) 项目不再嵌入本仓。
 
 > **版本**：`requirements.md` v0.13.0（2026-07-10）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
 
@@ -105,10 +105,9 @@ graph TB
 | [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI · SQLAlchemy 2 · Milvus · boto3    | 🟢 活跃 |
 | [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
 | [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 · Vite 6 · Tailwind 4 · shadcn/ui | 🟢 活跃 |
-| [openIndu-studio](https://github.com/openIndu/openIndu-studio)   | `openIndu-studio/`  | Python · `converters/` 引擎 · AutoCAD COM  | 🟢 活跃 |
 
-> Studio 早期的 Vue 前端 / FastAPI 后端已迁出至 portal·admin·backend，仓库本身转型为**工程产物生成引擎 + AI Agent 工作流工具链**，
-> 现为第 4 个活跃 submodule（不再归档）。对外服务化规划见 [`prod/requirements.md` §2.2.8 / §4.3.13](prod/requirements.md)。
+> Studio 早期的 Vue 前端 / FastAPI 后端已迁出至 portal·admin·backend，仓库本身继续作为**独立维护的工程产物生成引擎 + AI Agent 工作流工具链**，
+> 但不再嵌入 Website 作为 submodule。对外服务化规划见 [`prod/requirements.md` §2.2.8 / §4.3.13](prod/requirements.md)。
 
 ---
 

@@ -48,7 +48,6 @@
 | [openIndu-backend](https://github.com/openIndu/openIndu-backend) | `openIndu-backend/` | FastAPI + PostgreSQL + Milvus              | REST API + MCP Server                                                                         |
 | [openIndu-admin](https://github.com/openIndu/openIndu-admin)     | `openIndu-admin/`   | React 19 + Tailwind CSS 4 + shadcn/ui      | 统一管理后台                                                                                  |
 | [openIndu-portal](https://github.com/openIndu/openIndu-portal)   | `openIndu-portal/`  | React 19 + Tailwind CSS 4 + shadcn/ui      | 社区官网前台                                                                                  |
-| [openIndu-studio](https://github.com/openIndu/openIndu-studio)   | `openIndu-studio/`  | Python（`converters/` 引擎 + AutoCAD COM） | 工程产物生成引擎 + AI Agent 工作流工具链（详见 `prod/requirements.md` §0 / §2.2.8 / §4.3.13） |
 
 ### 平台服务总览
 
@@ -84,7 +83,6 @@ openIndu-website/
 ├── openIndu-backend/                 # git submodule: FastAPI 后端
 ├── openIndu-admin/                   # git submodule: React 管理后台
 ├── openIndu-portal/                  # git submodule: React 官网前台
-├── openIndu-studio/                  # git submodule: 工程产物生成引擎（Python）
 └── .gitmodules
 ```
 

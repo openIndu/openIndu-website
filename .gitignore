@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+.nyc_output/
+
+# Docker
+docker-compose.override.yml
+
+# Temp
+tmp/
+temp/
+models/
+
+# Local bulk-import run state (machine-specific paths/progress, not source)
+scripts/import_state.json
+
+# Local scratch notes (not source, not a formal changelog)
+changelog.txt
+scratchpad/

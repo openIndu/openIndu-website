@@ -1,0 +1,3 @@
+# gitleaks fingerprints for reviewed false positives.
+# (none — the local Docker Compose service address is covered by the
+#  web-api:[0-9]{4} allowlist regex in .gitleaks.toml)

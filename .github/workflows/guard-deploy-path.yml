@@ -1,0 +1,28 @@
+name: Guard deploy path
+
+# K8s manifests belong in a separate private GitOps repo, not here. See CLAUDE.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: guard-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  no-k8s-manifests:
+    name: Ensure no K8s manifests in this repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy/k8s absent
+        run: |
+          if [ -d deploy/k8s ] || git ls-files 'deploy/k8s/**' | grep -q .; then
+            echo "::error::deploy/k8s has been delegated to the private GitOps repo. See CLAUDE.md."
+            exit 1
+          fi
+          echo "✓ No K8s manifests in this repo"

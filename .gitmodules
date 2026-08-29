@@ -1,0 +1,14 @@
+[submodule "openIndu-backend"]
+	path = openIndu-backend
+	url = https://github.com/openIndu/openIndu-backend.git
+	branch = main
+
+[submodule "openIndu-admin"]
+	path = openIndu-admin
+	url = https://github.com/openIndu/openIndu-admin.git
+	branch = main
+
+[submodule "openIndu-portal"]
+	path = openIndu-portal
+	url = https://github.com/openIndu/openIndu-portal.git
+	branch = main

@@ -1,0 +1,2 @@
+# Reviewed false positive: Docker Compose internal service address (`web-api:8004`).
+860c6983baeaf18169cbef03ba578063f4f66f21:docker-compose.yml:generic-api-key:130

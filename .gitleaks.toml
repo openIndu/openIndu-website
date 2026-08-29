@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Docker Compose internal service address (not a credential)"
+regexTarget = "match"
+regexes = ['''web-api:[0-9]{4}''']

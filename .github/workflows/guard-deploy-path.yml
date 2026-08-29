@@ -1,6 +1,6 @@
 name: Guard deploy path
 
-# K8s manifests belong in openIndu/infra-deploy, not here. See CLAUDE.md.
+# K8s manifests belong in a separate private GitOps repo, not here. See CLAUDE.md.
 on:
   push:
     branches: [main]
@@ -22,7 +22,7 @@ jobs:
       - name: Check deploy/k8s absent
         run: |
           if [ -d deploy/k8s ] || git ls-files 'deploy/k8s/**' | grep -q .; then
-            echo "::error::deploy/k8s has been delegated to openIndu/infra-deploy. See CLAUDE.md."
+            echo "::error::deploy/k8s has been delegated to the private GitOps repo. See CLAUDE.md."
             exit 1
           fi
           echo "✓ No K8s manifests in this repo"

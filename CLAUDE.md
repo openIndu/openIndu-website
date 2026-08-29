@@ -1,31 +1,24 @@
 # openIndu-website — 聚合仓项目指南
 
-> **Rule #1（元规则）**：本仓遵守 openIndu 社区统一守则（11 条 RULE），由公共插件 `openindu-control-tower@openindu` 提供。**任何任务第一步：调用 `/principle` 加载守则。** 本仓不得自立守则副本；守则修改走 `openIndu/control-tower` 的 spec + arbiter 审核流程。
+> **Rule #1（元规则）**：本仓遵守 openIndu 社区统一守则（11 条 RULE），由公共插件 `openindu-control-tower@openindu` 提供（源仓 [openIndu/control-tower](https://github.com/openIndu/control-tower)）。**任何任务第一步：调用 `/principle` 加载守则。** 本仓不得自立守则副本；守则修改走 control-tower 的 spec + arbiter 审核流程。
 >
 > **权威需求文档**：[`prod/requirements.md`](prod/requirements.md) — 所有功能开发的唯一需求来源。
 >
 > **硬约束**：禁止直接 `git push` 到 `main`/`master`，必须走 PR；
-> K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)。
+> 生产 Kubernetes 部署清单维护在独立的私有 GitOps 仓库，不在本仓（本仓只放 `Dockerfile` / `docker-compose.yml` / CI 等构建资产）。
 >
-> **治理体系**：Agent 角色定义由公共插件 `openindu-control-tower@openindu` 提供（20 个 SDLC 角色 agent）；开发流程 + PR/执行/通信规范见
-> [`.claude/governance/`](.claude/governance/README.md)（保留 development-workflow.md 等仓库特有流程文档）。
+> **治理体系**：Agent 角色定义（20 个 SDLC 角色 agent）与行为守则（`/principle`，11 条 RULE：push-main 禁令 / K8s 清单归口 GitOps 仓 / 生产 SQL guard / 修复完整链路 等）均由公共插件 `openindu-control-tower@openindu` 提供。
 >
-> **管控中心**：本仓受 [openIndu/control-tower](https://github.com/openIndu/control-tower)
-> 统一管控，Agent 行为守则权威源为 `/principle`（11 条 RULE，含 push-main 禁令 / K8s 归口 infra-deploy / Gitee PR 英文 /
-> 生产 SQL guard / 修复完整链路 等 openIndu 硬约束）。
+> **文件写权限矩阵**（仓库特有约束）：
 >
-> **文件写权限矩阵**（仓库特有约束，守则收敛到插件时保留在此）：
+> | Agent role          | 可写目录                                        |
+> | ------------------- | ---------------------------------------------- |
+> | backend             | `openIndu-backend/`, `prod/`                   |
+> | frontend            | `openIndu-admin/`, `openIndu-portal/`, `prod/` |
+> | manager / architect | 全部子仓 + `prod/` + `design/`（设计 + 协调）  |
+> | ops / release       | 聚合仓根目录（Dockerfile、CI 配置）            |
 >
-> | Agent role          | 可写目录                                                     |
-> | ------------------- | ------------------------------------------------------------ |
-> | backend             | `openIndu-backend/`, `prod/`                                 |
-> | frontend            | `openIndu-admin/`, `openIndu-portal/`, `prod/`               |
-> | manager / architect | 全部子仓 + `prod/` + `design/`（设计 + 协调）                |
-> | ops / release       | 聚合仓根目录（Dockerfile、CI 配置）；K8s 清单 → infra-deploy |
->
-> **插件加载前置条件**：`/principle` 与 20 个角色 agent 来自 marketplace `openindu`（源 `openIndu/control-tower`，private）。
-> 若 `/principle` 不存在，说明本机 marketplace 缓存仍指向旧仓 `workflow-control-tower`（只提供 `openindu-workflow`），
-> 需重新添加 marketplace 后重启 Claude Code，不要在本仓另建守则副本绕过。
+> **插件加载前置条件**：`/principle` 与角色 agent 来自 marketplace `openindu`（源 `openIndu/control-tower`）。若 `/principle` 不存在，重新添加 marketplace 后重启 Claude Code，不要在本仓另建守则副本绕过。
 
 ## 0. 工作目录约定
 
@@ -69,28 +62,17 @@ openIndu-website/
 ├── prod/                             # 生产规范（权威文档源）
 │   ├── requirements.md               # 平台需求文档（所有功能开发的唯一需求来源）
 │   └── rag-optimization-design.md    # RAG 检索优化设计
-├── design/                           # SDLC 角色产物工作区（control-tower 流程写入）
+├── design/                           # SDLC 角色产物工作区
 │   ├── business/ product/ architecture/
 │   ├── database/ ops/ uiux/ bi/
 │   └── pilot-findings.md             # SDLC 流水线试跑发现的缺口
 ├── .claude/
-│   ├── settings.json                 # Hooks 配置（防 push main + lint + docker volume 保护）+ control-tower 插件引用
-│   ├── commands/                     # 仓库特有命令
-│   │   └── release.md                # /release：镜像构建 + infra-deploy Gitee PR（RULE 11 步骤 ④+⑤）
-│   └── governance/
-│       ├── development-workflow.md   # 开发工作流
-│       └── README.md                 # 治理体系说明
+│   └── settings.json                 # Hooks（防 push main + docker volume 保护）+ 插件引用
 ├── openIndu-backend/                 # git submodule: FastAPI 后端
 ├── openIndu-admin/                   # git submodule: React 管理后台
 ├── openIndu-portal/                  # git submodule: React 官网前台
 └── .gitmodules
 ```
-
-> **发布命令用 `/release`，不要用 `/build`**：本仓 `.claude/commands/release.md` 覆盖 RULE 11 步骤 ④+⑤
-> （构建推送 Aliyun CR + infra-deploy Gitee PR 改 tag）。control-tower 插件另有一个 `/build` skill 只做 ④，
-> 且与本仓生产实际有三处不符——admin/portal 用 `Dockerfile` 而非 `Dockerfile.k8s`（会烤进 compose 版 nginx 配置）、
-> tag 用 `YYYYMMDD-N` 且禁 `latest`（生产实为 git short SHA，且 `rag-server.yaml` 依赖 `openindu-backend:latest`）、
-> build context 用聚合仓根目录而非子模块目录。修复已提 control-tower PR；在其合并前，**本仓一律用 `/release`**。
 
 ---
 
@@ -200,7 +182,7 @@ gh pr create --repo openIndu/<subrepo> --base main --head feat/my-feature
 | `docker-compose.yml` | 聚合仓根目录        | 跨子仓服务编排（依赖、端口、网络）   |
 | `.env`               | 聚合仓根目录        | 本地开发环境变量（Git 忽略，不提交） |
 | `.env.example`       | 聚合仓根目录        | 环境变量模板（Git 跟踪）             |
-| K8s 部署清单         | `infra-deploy` 仓   | 生产部署，不存本仓                   |
+| K8s 部署清单         | 独立私有 GitOps 仓  | 生产部署，不存本仓                   |
 
 ### 开发环境启动
 

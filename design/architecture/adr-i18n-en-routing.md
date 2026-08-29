@@ -157,7 +157,7 @@ sitemap.xml 本次**手工扩到 22 条**（含 `xhtml:link` alternates），保
 
 | 选项 | 评估 |
 |---|---|
-| **nginx `return 302`** | ✅ 真 302，爬虫首跳即拿到 Location，不消耗抓取预算，无 JS 依赖。**RULE 8 不适用**——`nginx.k8s.conf` / `nginx.conf` 是 portal 仓内的构建资产，不是 K8s manifest（后者才必须在 infra-deploy） |
+| **nginx `return 302`** | ✅ 真 302，爬虫首跳即拿到 Location，不消耗抓取预算，无 JS 依赖。**RULE 8 不适用**——`nginx.k8s.conf` / `nginx.conf` 是 portal 仓内的构建资产，不是 K8s manifest（后者才必须在独立 GitOps 仓） |
 | 客户端 `<Navigate>` | ❌ 先 200 再 JS 跳 = 软跳转；`/en/privacy` 可能被单独收录；无 JS 爬虫（GPTBot / Claude-Web，正是做预渲染的目标受众）看到空壳。且在 basename `/en` 下 `<Navigate to="/privacy">` 会解析成 `/en/privacy` → 无限循环 |
 
 **决策：nginx 为权威，客户端留一层 dev/preview 对等网。**

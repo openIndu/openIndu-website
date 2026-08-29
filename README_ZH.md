@@ -166,7 +166,6 @@ git commit -m "chore: bump backend submodule"
 
 - [**prod/requirements.md**](prod/requirements.md) — 平台需求文档（v0.13.0，唯一权威需求来源）
 - [CLAUDE.md](CLAUDE.md) — AI Agent 开发入口指南
-- [.claude/governance/](.claude/governance/) — 本仓特有开发工作流（守则本身见 `/principle`）
 - [design/](design/) — SDLC 角色产物工作区（业务/产品/架构/数据/运维/UIUX/BI）
 
 ---
@@ -174,10 +173,10 @@ git commit -m "chore: bump backend submodule"
 ## 🛡️ 治理
 
 本仓受 [openIndu/control-tower](https://github.com/openIndu/control-tower) 统一管控，
-守则（11 条 RULE）与 20 个角色 agent 由插件 `openindu-control-tower@openindu` 下发，任务第一步调用 `/principle`：
+守则（11 条 RULE）与 SDLC 角色 agent 由插件 `openindu-control-tower@openindu` 下发，任务第一步调用 `/principle`：
 
 - ❌ **禁止**直接 push `main`/`master`，所有变更须走功能分支 + PR
-- 🗂️ K8s 部署清单归口 [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy)，本仓不存
+- 🗂️ 生产 K8s 部署清单维护在独立的私有 GitOps 仓库，本仓不存
 - 📋 所有功能开发以 `prod/requirements.md` 为唯一需求来源
 - 🔐 敏感信息（密钥/密码）禁止硬编码，统一走环境变量 / K8s Secret
 

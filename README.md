@@ -165,17 +165,16 @@ git commit -m "chore: bump backend submodule"
 
 - [**prod/requirements.md**](prod/requirements.md) — platform requirements doc (v0.13.0, the single authoritative requirements source)
 - [CLAUDE.md](CLAUDE.md) — AI Agent developer entry guide
-- [.claude/governance/](.claude/governance/) — repo-specific development workflows (for the principles themselves, see `/principle`)
 - [design/](design/) — SDLC role artifact workspace (business / product / architecture / data / ops / UIUX / BI)
 
 ---
 
 ## Governance
 
-This repo is governed by [openIndu/control-tower](https://github.com/openIndu/control-tower). The 11 RULEs and 20 role agents are distributed via the `openindu-control-tower@openindu` plugin. Every task starts with `/principle`:
+This repo is governed by [openIndu/control-tower](https://github.com/openIndu/control-tower). The 11 RULEs and the SDLC role agents are distributed via the `openindu-control-tower@openindu` plugin. Every task starts with `/principle`:
 
 - Prohibited: direct push to `main`/`master`; all changes go through feature branch + PR
-- K8s deployment manifests belong in [openIndu/infra-deploy](https://github.com/openIndu/infra-deploy), not in this repo
+- Production Kubernetes manifests are maintained in a separate private GitOps repo, not here
 - All feature development takes `prod/requirements.md` as the single requirements source
 - Secrets (keys, passwords) must never be hardcoded; always use environment variables / K8s Secrets
 

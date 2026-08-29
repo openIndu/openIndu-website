@@ -12,8 +12,3 @@
 	path = openIndu-portal
 	url = https://github.com/openIndu/openIndu-portal.git
 	branch = main
-
-[submodule "openIndu-studio"]
-	path = openIndu-studio
-	url = https://github.com/openIndu/openIndu-studio.git
-	branch = main

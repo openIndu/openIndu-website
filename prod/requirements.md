@@ -1,6 +1,6 @@
 # openIndu 平台需求文档
 
-> 版本: 0.13.0 | 日期: 2026-07-10 | 状态: 草案
+> 版本: 0.14.0 | 日期: 2026-09-21 | 状态: 草案
 >
 > **状态标注**（本版起对功能点标注落地状态，区分「需求」与「已实现」，使文档与代码对齐）：
 > ✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 规划中（已立项未落地）。未标注者默认 ✅ 已实现。
@@ -357,21 +357,16 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 
 #### 3.3.7 系统配置
 
-系统配置采用**混合分层策略**：
+> ♻️ **v0.14.0 变更**：原「混合分层策略」中的**业务参数**层（`system_configs` 表 + Admin「系统配置」页面）已整层退役——issue #199 排查确认，`embedding_model`/`embedding_device`/`rag_chunk_size`/`rag_chunk_overlap`/`rag_sync_interval` 这 5 个字段自实现以来从未被任何运行时代码读取（`rag_sync_service.py`/`milvus_service.py` 各自硬编码字面量，`sync_task.py` 用的是同名但不同源的环境变量 `RAG_SYNC_INTERVAL_MINUTES`），旧版此处"即时生效"的表述与实现不符。详见 `design/architecture/adr-issue-199-settings-rag-consolidation.md`。
+
+系统配置现为**两层**：
 
 | 配置类型 | 存储位置 | 修改方式 | 生效方式 | 示例 |
 |---------|---------|---------|---------|------|
-| **基础设施连接** | 环境变量 / K8s ConfigMap | 运维修改部署配置 | 重启生效 | 数据库地址、Milvus 地址、OSS Endpoint |
+| **基础设施连接** | 环境变量 / K8s ConfigMap | 运维修改部署配置 | 重启生效 | 数据库地址、Milvus 地址、OSS Endpoint、`EMBEDDING_MODEL`（🆕 v0.14.0，命名约定对齐 `openIndu-studio/local-rag-mcp`，默认 `BAAI/bge-m3`） |
 | **敏感凭证** | K8s Secret / 环境变量 | 运维注入 | 重启生效 | OSS AK/SK、短信服务密钥、JWT 密钥、MCP API Key |
-| **业务参数** | 数据库 `system_configs` 表 | Admin 后台页面 | 即时生效 | Embedding 模型、分块大小、同步间隔 |
 
-> Admin 后台的「系统配置」页面仅保留**业务参数**部分。基础设施和凭证类配置由运维通过部署配置管理，不在后台暴露。
-
-| 功能点 | 说明 | 优先级 |
-|--------|------|:---:|
-| Embedding 配置 | 模型名称、运行设备（CPU/CUDA） | P0 |
-| 分块参数 | chunk_size、chunk_overlap | P1 |
-| 同步间隔 | 定时同步间隔（分钟） | P1 |
+> Admin 后台不再提供业务参数配置页面。分块大小（`CHUNK_SIZE_TOKENS`/`CHUNK_OVERLAP_TOKENS`）与同步间隔（`RAG_SYNC_INTERVAL_MINUTES`）继续分别为 Python 常量与环境变量，均非本次改动范围。
 
 #### 3.3.8 后台搜索引擎策略
 
@@ -396,7 +391,8 @@ doc/三菱/驱动器/三菱-驱动器-MELSERVO-J4 伺服放大器手册.pdf
 | 审计日志 | `stats/AuditLogs.tsx` | §3.3.2 |
 | 文档列表 / 上传 | `documents/DocumentList.tsx`、`documents/DocumentUpload.tsx` | §3.3.3 |
 | 软件列表 / 上传 | `software/SoftwareList.tsx`、`software/SoftwareUpload.tsx` | §3.3.4 |
-| 设置 / 标签管理 | `settings/SettingsView.tsx`、`settings/TagsView.tsx` | §3.3.6 / §3.3.7 |
+| 标签管理 | `settings/TagsView.tsx` | §3.3.6 |
+| ~~系统配置~~ | ~~`settings/SettingsView.tsx`~~ | **已移除（issue #199，🆕 v0.14.0）——见 §3.3.7** |
 | 登录 | `Login.tsx` | §2.2.2 |
 
 > 📌 **说明**：无「官网内容管理」页面属**设计决策**——官网内容已定为 Portal 前端静态硬编码（§3.3.1），非实现缺口。
@@ -856,23 +852,26 @@ sequenceDiagram
 
 #### 4.3.7 同步任务模块 (`/api/v1/sync`)
 
-**同步流程**：
+> ♻️ **v0.14.0 架构叙述修正**：下方流程图此前描述 Backend 通过 HTTP 把变更文件发给一个独立的「RAG Server」进程、由其完成解析/向量化后再回调 Backend——这与实际实现不符。实际是**单一 `openIndu-backend` 进程内**由 APScheduler（`app/tasks/sync_task.py`）定时触发 `app/services/rag_sync_service.py`，同进程内完成 OSS 扫描、PDF 解析、BGE-M3 向量化、写入 Milvus，全程没有独立的「RAG Server」、没有 HTTP 调用、没有回调。issue #199 排查时发现此处文档与代码早已不一致，随本次改动一并修正。
+
+**同步流程（实际实现）**：
 
 ```
-定时任务 / 手动触发
+定时任务（APScheduler，间隔 = RAG_SYNC_ENABLED / RAG_SYNC_INTERVAL_MINUTES） / 手动触发（POST /sync/trigger）
+    │  均运行于 openIndu-backend 同一进程内，非独立服务
     │
-    ├── 1. Backend 扫描 OSS 中 documents/ 前缀的文件
-    │      对比 documents 表的 file_hash，找出新增/变更的文件
+    ├── 1. 扫描 OSS 中 documents/ 前缀的文件
+    │      对比 documents 表的 file_hash，找出新增/变更/带外删除的文件
     │
-    ├── 2. Backend 将变更文件列表发送到 RAG Server（HTTP）
-    │      RAG Server 负责：下载 PDF → PyMuPDF 解析文本 → BGE-M3 向量化 → 写入 Milvus
+    ├── 2. 同进程内完成：下载 PDF → PyMuPDF 解析文本 → BGE-M3 向量化（`EMBEDDING_MODEL`）→ 写入 Milvus
+    │      （先按 document_name 删除旧向量再插入新向量，重复执行天然幂等）
     │
-    ├── 3. RAG Server 完成后回调 Backend 更新 sync_status = 'synced'
+    ├── 3. 直接更新 sync_status = 'synced'（同进程内，非回调）
     │
     └── 失败重试：单文件最多重试 3 次，间隔 30 秒；全部失败的文件记录到 sync_logs
 ```
 
-> MCP Server 直接查询 Milvus（不经过 RAG Server），因为 RAG Server 仅负责索引构建，不提供查询 API。MCP Server 与 Backend Web API 共享 `app/services/milvus_service.py` 查询逻辑。
+> MCP Server 与 Backend Web API 共享同一个 `app/services/milvus_service.py` 查询逻辑，直接查询 Milvus。
 
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
@@ -880,12 +879,9 @@ sequenceDiagram
 | `/sync/status` | GET | 同步状态统计 | 登录 |
 | `/sync/logs` | GET | 同步日志 | admin |
 
-#### 4.3.8 系统配置模块 (`/api/v1/config`)
+#### 4.3.8 ~~系统配置模块~~（已移除）
 
-| 端点 | 方法 | 说明 | 权限 |
-|------|------|------|------|
-| `/config` | GET | 获取业务参数配置 | 登录 |
-| `/config` | PUT | 批量更新业务参数 | admin |
+> ♻️ **v0.14.0**：`GET/PUT /api/v1/config` 与 `system_configs` 表已随 Admin「系统配置」页面一并退役（issue #199，见 §3.3.7）。章节编号保留作为历史锚点，不再重新编号后续小节。
 
 #### 4.3.9 品牌映射模块 (`/api/v1/brand-mapping`)
 
@@ -1638,3 +1634,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.11.0 | 2026-06-30 | **代码对齐刷新**（基于 backend `20260629` 迁移 / admin `20260629` / portal `ChatWidget` 最新）：① 🆕 **会员申请体系**（§3.3.2 + §4.3.12-1）：`user` 可在 Portal 个人中心或聊天 Widget 申请升级为 member，admin 在新增 `MemberApplicationList.tsx` 页面批准/驳回；申请状态字段合并入 `users` 表（`member_apply_status/note/at/reviewed_by`），审计日志扩展 `member_approve / member_reject` action；② ✅ **智能咨询落地**（§2.2.7 / §4.3.12，原📋变为✅）：`ChatWidget.tsx` 已实现全功能，包括右下角悬浮气泡、会员引导入口；③ 🆕 **对话会话持久化**（§4.3.12 扩展）：新增 `chat_sessions` / `chat_messages` 表及 CRUD API（GET/POST/PATCH/DELETE `/chat/sessions`，GET `/chat/sessions/{id}/messages`，POST `/chat/sessions/{id}/stream`）；会话模式自动从 DB 读取 history、自动落库 assistant 回复、首条消息自动命名会话；④ 🆕 **统一登录端点** `POST /auth/sign-in`（§4.3.1）；⑤ 🆕 补充配置项 `LLM_TEMPERATURE`（0.2）/ `LLM_MAX_TOKENS`（1024）；⑥ 🔔 `chat_logs` 状态由📋变为✅（随智能咨询落地）。 |
 | 0.12.0 | 2026-06-30 | **代码对齐刷新**（基于 backend PRs #76/#77 / admin PRs #86/#87/#88/#89 / portal PRs #50–#53）：① 🆕 **列表排序参数**：`GET /documents`、`GET /software` 新增 `sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`，`desc`）；`GET /users` 新增 `sort_by=created_at\|last_login` + `role` 筛选；`GET /admin/member-applications`、`GET /admin/audit-logs`、`GET /stats/visit-logs` 新增 `sort_by=created_at` + `sort_order`（§4.3.3/4.3.4/4.3.4-2/4.3.5/4.3.6/4.3.12-1）；② 🆕 **会员申请管理合并**：`MemberApplicationList.tsx` 已合并入 `UserList.tsx`（无独立页面/路由），用户列表新增角色/申请状态筛选、内联通过/驳回按钮（§3.3.2/§3.4）；③ 法律/隐私更新（portal PRs #50–#53）：法律页面更新版权与数据采集披露，Portal 新增下载中心版权说明横幅，法律声明新增 `openindu_client_id` 存储项说明。 |
 | 0.13.0 | 2026-07-10 | **代码对齐刷新**（基于 backend PRs #81/#83/#84/#92/#94/#95 / portal #69/#71 / admin 移动端）：① 🆕 **多轮检索改写**（§4.3.12）：会话追问先经 LLM `rewrite_query()` 改写为自包含查询（降级 `_enrich_query()` 拼接最近 3 轮），修复跨轮品牌/系列向量漂移；② 🆕 **答案反馈**（§2.2.7 / §4.3.12）：`chat_messages.feedback`（👍1/👎-1）+ `POST /chat/sessions/{id}/messages/{mid}/feedback`；新增 `GET /stats/chat/knowledge-gaps`（§4.3.4）汇总 👎 与 fallback 消息定位知识盲区；③ 🆕 **双模式作答显式化**（§4.3.12）：grounded/fallback 按检索 top-1 相似度 `0.7` 阈值切换，SSE 新增 `event: mode`，fallback 用通用工业知识 system prompt 并前端提示「非平台知识库」；④ 🆕 **品牌映射 DB 化**（§4.3.9 / §4.6）：新增 `brand_mappings` 表 + 种子数据（keyence/inovance），支撑 REST 与 `get_brand_mapping` MCP 工具；⑤ 🆕 `GET /documents`、`GET /software` 排序新增 `sort_by=brand`（§4.3.5/§4.3.6）；⑥ 📌 厘清 `openIndu-studio` 现状（§0）：前后端已迁出，仓库保留为工程产物引擎 + AI 工作流工具链、现为 openIndu-website 活跃子模块（含 AutoCAD DWG 电路图生成），不再归档；⑦ portal/admin 移动端响应式适配、聊天 401 token 刷新修复。 |
+| 0.14.0 | 2026-09-21 | **♻️ Admin 系统配置页退役 + embedding 归属重整**（issue #199，方案与排期见 `design/architecture/adr-issue-199-settings-rag-consolidation.md`，用户已签字批准）：① 排查确认 Admin「系统配置」页的 5 个字段（`embedding_model`/`embedding_device`/`rag_chunk_size`/`rag_chunk_overlap`/`rag_sync_interval`）自实现以来从未被运行时代码读取，判定为可安全整体退役的展示层，非活跃配置；② 移除该页面、`GET/PUT /api/v1/config`、`SystemConfig` 模型引用（`system_configs` 表本身暂不删除，延后 ≥4 周 bake period 后再评估）；③ `EMBEDDING_MODEL` 提升为 `openIndu-backend` 具名环境变量，命名与默认值对齐 `openIndu-studio/local-rag-mcp` 已有约定（纯命名对齐，两仓之间不产生运行时依赖）；④ Document Management 的 `sync_status` 展示层合并 `pending`/`syncing`/`deleted` 为统一"待同步"呈现，后端状态机、409 并发守卫、MCP 输出均不变；⑤ 修正 §4.3.7 与实现不符的"独立 RAG Server + HTTP 回调"架构叙述——实际为 `openIndu-backend` 单进程内 APScheduler 调度。 |

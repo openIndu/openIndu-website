@@ -277,17 +277,16 @@ openIndu 是一个开源工业自动化生态平台，提供 AI 辅助的 PLC �
 
 #### 3.3.3 文档管理
 
-> Admin 后台仅负责文档的**上传、编辑元数据、删除、发布和同步管理**。文档浏览/预览/下载属于 Portal 的消费功能（§2.2.3），不在 Admin 后台提供。
+> Admin 后台负责文档上传、编辑元数据、下载、删除和发布。Website 不承担 OBS→Milvus 索引同步；未来由 openIndu-studio 从对象存储读取文档并维护向量索引。Studio 执行器尚未实现，上传或修改文档后不会自动更新 Milvus。
 
 | 功能点 | 说明 | 优先级 | 状态 |
 |--------|------|:---:|:---:|
 | 文档列表 | 分页展示，支持按品牌/分类/系列/关键词筛选，显示下载次数（只读展示） | P0 | ✅ |
-| 文档上传 | 上传 PDF，选择品牌、分类、系列（可选）；存入对象存储后**后台异步触发 RAG 同步** | P0 | ✅ |
+| 文档上传 | 上传 PDF，选择品牌、分类、系列（可选）；存入对象存储并登记元数据 | P0 | ✅ |
 | 文档编辑 | 修改品牌、分类、系列、描述、显示名（original_name）等元数据；不可修改文件本体 | P0 | ✅ |
 | 文档发布 | 单个 `is_published` 上/下架开关 + **批量发布/取消**（按 ids 或品牌/分类/系列/关键词条件） | P0 | ✅ 🆕 |
-| 文档删除 | 级联删除对象存储 + 数据库 + RAG 向量数据 | P0 | ✅ |
-| 同步触发 | 手动触发单文档 RAG 同步（`POST /documents/{id}/sync`）/ OSS→RAG 全量同步 | P0 | ✅ |
-| 同步状态 | 查看同步进度和日志 | P1 | ✅ |
+| 文档下载 | Admin 获取对象存储签名下载链接 | P0 | ✅ |
+| 文档删除 | 删除对象存储文件和数据库元数据；向量清理由未来 Studio 执行器负责 | P0 | ✅ |
 
 > **发布控制**：`documents.is_published` 控制 Portal 是否展示。Portal 列表带 `published_only=true` 仅取已发布文档；Admin 列表展示全部。批量发布端点见 §4.3.5。
 
@@ -561,7 +560,7 @@ openIndu-backend/
 | 端点 | 方法 | 说明 | 权限 |
 |------|------|------|------|
 | `/documents` | GET | 文档列表（分页+筛选：brand/category/series/keyword/`published_only`），含下载次数；`sort_by=file_size\|upload_time\|download_count\|brand`（默认 `upload_time`）+ `sort_order=asc\|desc`（默认 `desc`）🆕 | 公开 |
-| `/documents/upload` | POST | 上传 PDF（brand/category/series/description），后台异步触发 RAG 同步 | admin |
+| `/documents/upload` | POST | 上传 PDF（brand/category/series/description）并保存对象存储元数据 | admin |
 | `/documents/brands/list` | GET | 文档品牌列表 | 公开 |
 | `/documents/categories/list` | GET | 文档分类列表 | 公开 |
 | `/documents/{id}` | GET | 文档详情（含下载次数） | 公开 |
@@ -570,8 +569,7 @@ openIndu-backend/
 | `/documents/publish/bulk` | PATCH | **批量**发布/取消（按 ids 或 brand/category/series/keyword 条件）🆕 | admin |
 | `/documents/{id}` | PATCH | 更新元数据（brand/category/series/description/original_name） | admin |
 | `/documents/{id}/publish` | PATCH | 切换单个文档发布状态 🆕 | admin |
-| `/documents/{id}/sync` | POST | 手动触发单文档 RAG 同步（后台任务） | admin |
-| `/documents/{id}` | DELETE | 级联删除对象存储 + DB + RAG 向量 | admin |
+| `/documents/{id}` | DELETE | 删除对象存储文件和 DB 元数据；向量索引由 Studio 后续清理 | admin |
 
 #### 4.3.5-1 标签管理模块 (`/api/v1/tags`)
 
@@ -850,34 +848,11 @@ sequenceDiagram
 
 > 签名直链有效期 = `PRESIGNED_URL_EXPIRE_MINUTES`（默认 5 分钟）。会员角色与每日限额校验在「获取链接」接口完成；文件流端点仅校验 URL 签名（浏览器直链请求无法携带 Authorization 头）。⚠️ `/files` 端点含 debug 占位文件的向后兼容旁路，生产务必使用 `s3` 后端。
 
-#### 4.3.7 同步任务模块 (`/api/v1/sync`)
+#### 4.3.7 ~~同步任务模块~~（Website 已移除）
 
-> ♻️ **v0.14.0 架构叙述修正**：下方流程图此前描述 Backend 通过 HTTP 把变更文件发给一个独立的「RAG Server」进程、由其完成解析/向量化后再回调 Backend——这与实际实现不符。实际是**单一 `openIndu-backend` 进程内**由 APScheduler（`app/tasks/sync_task.py`）定时触发 `app/services/rag_sync_service.py`，同进程内完成 OSS 扫描、PDF 解析、BGE-M3 向量化、写入 Milvus，全程没有独立的「RAG Server」、没有 HTTP 调用、没有回调。issue #199 排查时发现此处文档与代码早已不一致，随本次改动一并修正。
+Website 不再提供 `/api/v1/sync/trigger`、`/status`、`/logs`、`/documents/{id}/sync`，也不注册 OSS→Milvus 定时任务。Web API 与 MCP Server 继续查询 Milvus；Web API 继续提供对象存储上传、下载、预览和文档元数据。认证令牌与在线会话清理任务继续运行。
 
-**同步流程（实际实现）**：
-
-```
-定时任务（APScheduler，间隔 = RAG_SYNC_ENABLED / RAG_SYNC_INTERVAL_MINUTES） / 手动触发（POST /sync/trigger）
-    │  均运行于 openIndu-backend 同一进程内，非独立服务
-    │
-    ├── 1. 扫描 OSS 中 documents/ 前缀的文件
-    │      对比 documents 表的 file_hash，找出新增/变更/带外删除的文件
-    │
-    ├── 2. 同进程内完成：下载 PDF → PyMuPDF 解析文本 → BGE-M3 向量化（`EMBEDDING_MODEL`）→ 写入 Milvus
-    │      （先按 document_name 删除旧向量再插入新向量，重复执行天然幂等）
-    │
-    ├── 3. 直接更新 sync_status = 'synced'（同进程内，非回调）
-    │
-    └── 失败重试：单文件最多重试 3 次，间隔 30 秒；全部失败的文件记录到 sync_logs
-```
-
-> MCP Server 与 Backend Web API 共享同一个 `app/services/milvus_service.py` 查询逻辑，直接查询 Milvus。
-
-| 端点 | 方法 | 说明 | 权限 |
-|------|------|------|------|
-| `/sync/trigger` | POST | 手动触发同步 | admin |
-| `/sync/status` | GET | 同步状态统计 | 登录 |
-| `/sync/logs` | GET | 同步日志 | admin |
+openIndu-studio 负责后续索引执行器：读取 Website 文档清单/元数据及对象存储文件，校验哈希，解析和向量化，再对 Milvus 做幂等更新及删除对账。该执行器、访问授权、失败重试及删除对账仍待实现；在交接完成并验证前，新上传、修改或删除的文档与 Milvus 可能暂时不一致。历史 `documents.sync_status`、`sync_time` 和 `sync_logs` 保留作兼容与审计，不再作为 Website API 的公开字段或同步控制依据。
 
 #### 4.3.8 ~~系统配置模块~~（已移除）
 
@@ -932,7 +907,6 @@ sequenceDiagram
 
 | 任务 | 说明 | 间隔 |
 |------|------|------|
-| OSS → RAG 同步 | 扫描 OSS 变更文件，解析 PDF 并更新向量库；受 `RAG_SYNC_ENABLED` 控制，生产可关闭内置定时同步，改由手动端点或离线脚本触发 | 可配置（默认 60 分钟） |
 | 过期 token 清理 | 清理 `token_blacklist` 中已过期的记录 | 每小时 |
 | 离线会话清理 | 清理超过 5 分钟无活动的 `login_sessions` | 每分钟 |
 
@@ -1183,9 +1157,9 @@ documents                # 文档元数据
 ├── oss_key              # OSS 对象 key（前缀: doc/，格式: doc/{品牌中文}/{分类中文}/{文件名}）
 ├── download_count       # 下载次数，默认 0
 ├── is_published         # 是否发布（前端展示控制）
-├── sync_status          # pending/syncing/synced/failed
+├── sync_status          # 历史兼容列，不再由 Website 更新或暴露
 ├── upload_time
-└── sync_time
+└── sync_time            # 历史兼容列
 
 resource_tags            # 标签元数据（品牌/分类/系列统一管理）
 ├── id                   # 主键（BIGSERIAL）
@@ -1224,7 +1198,7 @@ software_versions        # 软件版本明细 🆕
 ├── is_published         # 🆕 版本级发布开关（发布权威字段，Portal 据此过滤）
 └── is_active            # 是否启用（可下架旧版本）
 
-sync_logs                # 同步日志
+sync_logs                # 历史同步日志（保留，不再写入）
 ├── document_id          # 可为 NULL（扫描阶段失败时无具体文件）
 ├── action               # add/update/delete
 ├── status               # success/failed
@@ -1384,7 +1358,7 @@ plc_knowledge            # 向量知识库
 | `OSS_SOFTWARE_PREFIX` | `soft` | 软件对象前缀（原 `software/`，已重命名） |
 | `DOWNLOAD_DAILY_LIMIT` | `5` | 每用户每类型每日下载上限 |
 | `PREVIEW_DAILY_LIMIT` | `20` | 每用户每日文档预览上限（独立于下载）🆕 |
-| `RAG_SYNC_ENABLED` | `true` | 是否注册 OSS → Milvus 内置定时同步任务；生产可设 `false`，手动同步端点也会返回 503，改用离线脚本/受控环境同步 🆕 |
+| `RAG_SYNC_ENABLED` / `RAG_SYNC_INTERVAL_MINUTES` | `false` / `60` | 仅为旧 `.env` 兼容而接受，Website 不使用；新部署无需设置 |
 | `IP2REGION_XDB_PATH` | `data/ip2region_v4.xdb` | IP 地理位置离线库路径；缺失时公网 IP 降级为「未知」 🆕 |
 | `PRESIGNED_URL_EXPIRE_MINUTES` | `5` | 下载/预览签名 URL 有效期 |
 | `DOCUMENT_MAX_SIZE_MB` / `SOFTWARE_MAX_SIZE_GB` | `50` / `5` | 文件大小上限 |
@@ -1635,3 +1609,4 @@ openIndu 的核心价值是 **RAG 知识库 + AI Agent 工作流**。这个链�
 | 0.12.0 | 2026-06-30 | **代码对齐刷新**（基于 backend PRs #76/#77 / admin PRs #86/#87/#88/#89 / portal PRs #50–#53）：① 🆕 **列表排序参数**：`GET /documents`、`GET /software` 新增 `sort_by=file_size\|upload_time\|download_count`（默认 `upload_time`，`desc`）；`GET /users` 新增 `sort_by=created_at\|last_login` + `role` 筛选；`GET /admin/member-applications`、`GET /admin/audit-logs`、`GET /stats/visit-logs` 新增 `sort_by=created_at` + `sort_order`（§4.3.3/4.3.4/4.3.4-2/4.3.5/4.3.6/4.3.12-1）；② 🆕 **会员申请管理合并**：`MemberApplicationList.tsx` 已合并入 `UserList.tsx`（无独立页面/路由），用户列表新增角色/申请状态筛选、内联通过/驳回按钮（§3.3.2/§3.4）；③ 法律/隐私更新（portal PRs #50–#53）：法律页面更新版权与数据采集披露，Portal 新增下载中心版权说明横幅，法律声明新增 `openindu_client_id` 存储项说明。 |
 | 0.13.0 | 2026-07-10 | **代码对齐刷新**（基于 backend PRs #81/#83/#84/#92/#94/#95 / portal #69/#71 / admin 移动端）：① 🆕 **多轮检索改写**（§4.3.12）：会话追问先经 LLM `rewrite_query()` 改写为自包含查询（降级 `_enrich_query()` 拼接最近 3 轮），修复跨轮品牌/系列向量漂移；② 🆕 **答案反馈**（§2.2.7 / §4.3.12）：`chat_messages.feedback`（👍1/👎-1）+ `POST /chat/sessions/{id}/messages/{mid}/feedback`；新增 `GET /stats/chat/knowledge-gaps`（§4.3.4）汇总 👎 与 fallback 消息定位知识盲区；③ 🆕 **双模式作答显式化**（§4.3.12）：grounded/fallback 按检索 top-1 相似度 `0.7` 阈值切换，SSE 新增 `event: mode`，fallback 用通用工业知识 system prompt 并前端提示「非平台知识库」；④ 🆕 **品牌映射 DB 化**（§4.3.9 / §4.6）：新增 `brand_mappings` 表 + 种子数据（keyence/inovance），支撑 REST 与 `get_brand_mapping` MCP 工具；⑤ 🆕 `GET /documents`、`GET /software` 排序新增 `sort_by=brand`（§4.3.5/§4.3.6）；⑥ 📌 厘清 `openIndu-studio` 现状（§0）：前后端已迁出，仓库保留为工程产物引擎 + AI 工作流工具链、现为 openIndu-website 活跃子模块（含 AutoCAD DWG 电路图生成），不再归档；⑦ portal/admin 移动端响应式适配、聊天 401 token 刷新修复。 |
 | 0.14.0 | 2026-09-21 | **♻️ Admin 系统配置页退役 + embedding 归属重整**（issue #199，方案与排期见 `design/architecture/adr-issue-199-settings-rag-consolidation.md`，用户已签字批准）：① 排查确认 Admin「系统配置」页的 5 个字段（`embedding_model`/`embedding_device`/`rag_chunk_size`/`rag_chunk_overlap`/`rag_sync_interval`）自实现以来从未被运行时代码读取，判定为可安全整体退役的展示层，非活跃配置；② 移除该页面、`GET/PUT /api/v1/config`、`SystemConfig` 模型引用（`system_configs` 表本身暂不删除，延后 ≥4 周 bake period 后再评估）；③ `EMBEDDING_MODEL` 提升为 `openIndu-backend` 具名环境变量，命名与默认值对齐 `openIndu-studio/local-rag-mcp` 已有约定（纯命名对齐，两仓之间不产生运行时依赖）；④ Document Management 的 `sync_status` 展示层合并 `pending`/`syncing`/`deleted` 为统一"待同步"呈现，后端状态机、409 并发守卫、MCP 输出均不变；⑤ 修正 §4.3.7 与实现不符的"独立 RAG Server + HTTP 回调"架构叙述——实际为 `openIndu-backend` 单进程内 APScheduler 调度。 |
+| 0.15.0 | 2026-09-23 | **文档索引职责调整**（见 `design/architecture/adr-document-indexing-owner.md`）：Admin 移除同步状态/操作/日志；Website API 下线同步端点和定时索引任务，保留文档对象存储操作、元数据和 Milvus 检索；旧状态列及日志表兼容保留；Studio 索引执行器待建设，生产交接未完成。本行取代 v0.14.0 中“后端状态机与同步操作保留”的运行时决定。 |

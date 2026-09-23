@@ -4,7 +4,7 @@
 
 openIndu 开源工业自动化生态平台的**聚合开发仓**，通过 git submodule 统一管理 Portal（社区官网）、Admin（管理后台）和 Backend（FastAPI + MCP）三个可部署应用。独立维护的 [openIndu-studio](https://github.com/openIndu/openIndu-studio) 项目不再嵌入本仓。
 
-> **版本**：`requirements.md` v0.13.0（2026-07-10）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
+> **版本**：`requirements.md` v0.15.0（2026-09-23）｜ **权威需求文档**：[`prod/requirements.md`](prod/requirements.md)
 
 ---
 
@@ -50,7 +50,7 @@ graph TB
         OSS[("对象存储<br/>OSS / MinIO / 本地 FS")]
     end
 
-    RAG["RAG Server<br/>PyMuPDF + BGE-M3"]
+    STUDIO["openIndu-studio<br/>索引执行器（待建设）"]
     SMS["阿里云 / 腾讯云<br/>短信"]
 
     U1 -->|HTTPS| ING
@@ -66,11 +66,11 @@ graph TB
 
     W --> PG
     W <-->|读写 + 签名| OSS
-    W -->|触发同步| RAG
+    W -->|聊天检索| ML
     W --> SMS
 
-    RAG --> OSS
-    RAG --> ML
+    STUDIO -. "未来：读取文档" .-> OSS
+    STUDIO -. "未来：维护索引" .-> ML
 
     M --> ML
     M --> PG
@@ -80,7 +80,7 @@ graph TB
     classDef backend fill:#dbeafe,stroke:#2563eb
     classDef frontend fill:#dcfce7,stroke:#16a34a
     class PG,ML,OSS storage
-    class W,M,RAG backend
+    class W,M,STUDIO backend
     class P,A frontend
 ```
 
@@ -89,6 +89,7 @@ graph TB
 - `Web API` 面向公网，CORS + 限流 + JWT；`MCP Server` 仅内网，服务间认证
 - `OSS` 为**私有桶**，所有访问经 `Web API` 签发短期 Presigned URL（生产）或 HMAC 签名直链（本地）
 - 文件流**不经后端**——下载/预览/直传均由浏览器与 OSS 直连
+- 文档索引同步由未来的 Studio 执行器负责；当前上传后不会自动写入 Milvus，详见[职责 ADR](design/architecture/adr-document-indexing-owner.md)
 
 ---
 

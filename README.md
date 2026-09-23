@@ -4,7 +4,7 @@
 
 The **aggregate repository** for the openIndu open-source industrial automation ecosystem, managing three deployable applications — Portal (community site), Admin (dashboard), and Backend (FastAPI + MCP) — via git submodules. The independently maintained [openIndu-studio](https://github.com/openIndu/openIndu-studio) project is no longer embedded in this repository.
 
-> **Version**: `requirements.md` v0.13.0 (2026-07-10) | **Authoritative spec**: [`prod/requirements.md`](prod/requirements.md)
+> **Version**: `requirements.md` v0.15.0 (2026-09-23) | **Authoritative spec**: [`prod/requirements.md`](prod/requirements.md)
 
 ---
 
@@ -50,7 +50,7 @@ graph TB
         OSS[("Object Storage<br/>OSS / MinIO / local FS")]
     end
 
-    RAG["RAG Server<br/>PyMuPDF + BGE-M3"]
+    STUDIO["openIndu-studio<br/>indexing worker (planned)"]
     SMS["Alibaba Cloud / Tencent Cloud<br/>SMS"]
 
     U1 -->|HTTPS| ING
@@ -66,11 +66,11 @@ graph TB
 
     W --> PG
     W <-->|read/write + signing| OSS
-    W -->|trigger sync| RAG
+    W -->|chat search| ML
     W --> SMS
 
-    RAG --> OSS
-    RAG --> ML
+    STUDIO -. "future: read documents" .-> OSS
+    STUDIO -. "future: maintain index" .-> ML
 
     M --> ML
     M --> PG
@@ -80,7 +80,7 @@ graph TB
     classDef backend fill:#dbeafe,stroke:#2563eb
     classDef frontend fill:#dcfce7,stroke:#16a34a
     class PG,ML,OSS storage
-    class W,M,RAG backend
+    class W,M,STUDIO backend
     class P,A frontend
 ```
 
@@ -89,6 +89,7 @@ graph TB
 - `Web API` is public-facing, with CORS + rate limiting + JWT; `MCP Server` is internal-only, with service-to-service auth
 - `OSS` is a **private bucket**; all access goes through `Web API` issuing short-lived presigned URLs (production) or HMAC-signed direct links (local)
 - File streams **do not pass through the backend** — downloads, previews, and uploads are all browser-to-OSS direct
+- Document indexing belongs to a future Studio worker; uploads currently do not update Milvus automatically. See the [ownership ADR](design/architecture/adr-document-indexing-owner.md).
 
 ---
 
